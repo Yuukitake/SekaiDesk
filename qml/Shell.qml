@@ -9338,6 +9338,122 @@ PanelWindow {
                                                     }
                                                 }
                                                 Rectangle {
+                                                    width: parent.width
+                                                    height: ramCardCol.implicitHeight + 24
+                                                    radius: 16
+                                                    color: RamCleanerService.autoEnabled ? "#F0FDF4" : "#F8FAFC"
+                                                    border.width: 2.5; border.color: "#1A1B2E"
+
+                                                    Column {
+                                                        id: ramCardCol
+                                                        x: 16; y: 12
+                                                        width: parent.width - 32
+                                                        spacing: 10
+
+                                                        Row {
+                                                            width: parent.width; height: 38
+                                                            Column {
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                width: parent.width - 78
+                                                                spacing: 1
+                                                                Row {
+                                                                    spacing: 8
+                                                                    Image { anchors.verticalCenter: parent.verticalCenter; width: 17; height: 17; source: "qrc:/qml/icons/rocket-dark.svg"; smooth: true }
+                                                                    Text {
+                                                                        anchors.verticalCenter: parent.verticalCenter
+                                                                        text: "AUTO CLEAN RAM (STUTTER-FREE)"
+                                                                        font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                                                    }
+                                                                }
+                                                                Text {
+                                                                    text: "Priority-0 Standby only · Zero game stutter"
+                                                                    font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: "#475569"
+                                                                }
+                                                            }
+                                                            Rectangle {
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                width: 72; height: 32; radius: 16
+                                                                color: RamCleanerService.autoEnabled ? themeHub.accentB : "#E2E8F0"
+                                                                border.width: 2; border.color: "#1A1B2E"
+                                                                Text {
+                                                                    anchors.centerIn: parent
+                                                                    text: RamCleanerService.autoEnabled ? "ON" : "OFF"
+                                                                    font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E"
+                                                                }
+                                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: RamCleanerService.setAutoEnabled(!RamCleanerService.autoEnabled) }
+                                                            }
+                                                        }
+
+                                                        Row {
+                                                            width: parent.width; spacing: 6
+                                                            Text {
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                text: "TRIGGER"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#475569"
+                                                            }
+                                                            Repeater {
+                                                                model: [70, 75, 80, 85]
+                                                                delegate: Rectangle {
+                                                                    required property int modelData
+                                                                    width: 44; height: 28; radius: 8
+                                                                    color: RamCleanerService.thresholdPercent === modelData ? themeHub.accentA : (ramThMa.containsMouse ? "#CBD5E1" : "#E2E8F0")
+                                                                    border.width: 2; border.color: "#1A1B2E"
+                                                                    Text { anchors.centerIn: parent; text: modelData + "%"; font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                    MouseArea { id: ramThMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: RamCleanerService.setThresholdPercent(modelData) }
+                                                                }
+                                                            }
+                                                            Item { width: 8; height: 1 }
+                                                            Text {
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                text: "EVERY"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#475569"
+                                                            }
+                                                            Repeater {
+                                                                model: [
+                                                                    { sec: 120, lbl: "2M" },
+                                                                    { sec: 300, lbl: "5M" },
+                                                                    { sec: 600, lbl: "10M" }
+                                                                ]
+                                                                delegate: Rectangle {
+                                                                    required property var modelData
+                                                                    width: 44; height: 28; radius: 8
+                                                                    color: RamCleanerService.intervalSeconds === modelData.sec ? themeHub.accentB : (ramIntMa.containsMouse ? "#CBD5E1" : "#E2E8F0")
+                                                                    border.width: 2; border.color: "#1A1B2E"
+                                                                    Text { anchors.centerIn: parent; text: modelData.lbl; font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                    MouseArea { id: ramIntMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: RamCleanerService.setIntervalSeconds(modelData.sec) }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Row {
+                                                            width: parent.width; spacing: 8
+                                                            Rectangle {
+                                                                width: 196; height: 34; radius: 10
+                                                                color: RamCleanerService.cleaning ? "#FEF3C7" : (ramDeepMa.containsMouse ? "#4ADE80" : themeHub.accentB)
+                                                                border.width: 2; border.color: "#1A1B2E"
+                                                                Text {
+                                                                    anchors.centerIn: parent
+                                                                    text: RamCleanerService.cleaning ? "CLEANING RAM..." : "DEEP CLEAN RAM NOW"
+                                                                    font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                }
+                                                                MouseArea {
+                                                                    id: ramDeepMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                                    enabled: !RamCleanerService.cleaning
+                                                                    onClicked: RamCleanerService.cleanNowDeep()
+                                                                }
+                                                            }
+                                                            Text {
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                width: parent.width - 204; elide: Text.ElideRight
+                                                                text: RamCleanerService.lastResultText !== ""
+                                                                      ? RamCleanerService.lastResultText
+                                                                      : "WorkingSets + Modified + Standby"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: "#475569"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                Rectangle {
                                                     width: parent.width; height: 54; radius: 16
                                                     color: SystemControl.launchAtStartup ? "#ECFDF5" : "#F8FAFC"
                                                     border.width: 2.5; border.color: "#1A1B2E"
@@ -9536,7 +9652,7 @@ PanelWindow {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 width: abtVerTxt.implicitWidth + 18; height: 28; radius: 14
                                                                 color: "#1A1B2E"
-                                                                Text { id: abtVerTxt; anchors.centerIn: parent; text: "v0.3.0 · WIN64"; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#FFFFFF" }
+                                                                Text { id: abtVerTxt; anchors.centerIn: parent; text: "v" + UpdateService.currentVersion + " · WIN64"; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#FFFFFF" }
                                                             }
                                                             Rectangle {
                                                                 visible: aboutSubpage.comboCount > 0
@@ -9652,23 +9768,25 @@ PanelWindow {
                                                             width: parent.width
                                                             spacing: 14
 
-                                                            Rectangle {
-                                                                width: 64; height: 64; radius: 32
-                                                                color: "#F1F5F9"; border.width: 3; border.color: "#1A1B2E"
-                                                                clip: true
+                                                            Item {
+                                                                width: 64; height: 64
+                                                                Rectangle {
+                                                                    anchors.fill: parent; radius: 32
+                                                                    color: "#F1F5F9"
+                                                                }
                                                                 Image {
                                                                     anchors.fill: parent
-                                                                    anchors.margins: 2
-                                                                    source: themeHub.profileAvatarUrl !== "" ? themeHub.profileAvatarUrl : themeHub.quickPanelAvatarUrl
-                                                                    fillMode: Image.PreserveAspectCrop
+                                                                    anchors.margins: 3
+                                                                    source: "qrc:/qml/icons/author-pfp.png"
+                                                                    fillMode: Image.PreserveAspectFit
                                                                     smooth: true
-                                                                    visible: status === Image.Ready
+                                                                    mipmap: true
+                                                                    antialiasing: true
                                                                 }
-                                                                Text {
-                                                                    anchors.centerIn: parent
-                                                                    text: "✦"
-                                                                    font.pixelSize: 26; font.weight: Font.Black; color: "#1A1B2E"
-                                                                    visible: (themeHub.profileAvatarUrl === "" && themeHub.quickPanelAvatarUrl === "")
+                                                                Rectangle {
+                                                                    anchors.fill: parent; radius: 32
+                                                                    color: "transparent"; border.width: 3; border.color: "#1A1B2E"
+                                                                    antialiasing: true
                                                                 }
                                                             }
 
@@ -9680,7 +9798,7 @@ PanelWindow {
                                                                     spacing: 8
                                                                     Text {
                                                                         anchors.verticalCenter: parent.verticalCenter
-                                                                        text: themeHub.profileName || "Yozora"
+                                                                        text: "Yuukitake"
                                                                         font.family: "Segoe UI"; font.pixelSize: 22; font.weight: Font.Black; color: "#1A1B2E"
                                                                     }
                                                                     Rectangle {
@@ -9798,6 +9916,98 @@ PanelWindow {
                                                                         spacing: 2
                                                                         Text { text: modelData.k; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#64748B" }
                                                                         Text { width: parent.width; elide: Text.ElideRight; text: modelData.v; font.family: "Consolas"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Rectangle {
+                                                            width: parent.width
+                                                            height: abtUpdCol.implicitHeight + 24
+                                                            radius: 16
+                                                            color: UpdateService.updateAvailable ? "#FEF9C3" : "#F8FAFC"
+                                                            border.width: 2.5
+                                                            border.color: "#1A1B2E"
+
+                                                            Column {
+                                                                id: abtUpdCol
+                                                                x: 14; y: 12
+                                                                width: parent.width - 28
+                                                                spacing: 8
+
+                                                                Row {
+                                                                    width: parent.width
+                                                                    spacing: 8
+
+                                                                    Text {
+                                                                        text: "AUTO UPDATER"
+                                                                        anchors.verticalCenter: parent.verticalCenter
+                                                                        font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                    }
+
+                                                                    Rectangle {
+                                                                        anchors.verticalCenter: parent.verticalCenter
+                                                                        width: abtUpdVerTxt.implicitWidth + 14; height: 22; radius: 11
+                                                                        color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
+                                                                        Text {
+                                                                            id: abtUpdVerTxt
+                                                                            anchors.centerIn: parent
+                                                                            text: "v" + UpdateService.currentVersion + " · " + (UpdateService.isInstallerInstall ? "INSTALLER" : "PORTABLE")
+                                                                            font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                Text {
+                                                                    width: parent.width
+                                                                    wrapMode: Text.WordWrap
+                                                                    text: UpdateService.status === "downloading"
+                                                                          ? ("Downloading v" + UpdateService.latestVersion + " · " + Math.round(UpdateService.downloadProgress * 100) + "%")
+                                                                          : UpdateService.statusText
+                                                                    font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold
+                                                                    color: UpdateService.status === "error" ? "#E11D48" : "#334155"
+                                                                }
+
+                                                                Rectangle {
+                                                                    visible: UpdateService.status === "downloading" || UpdateService.status === "verifying" || UpdateService.status === "installing"
+                                                                    width: parent.width; height: 12; radius: 6
+                                                                    color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
+                                                                    clip: true
+                                                                    Rectangle {
+                                                                        height: parent.height
+                                                                        width: parent.width * (UpdateService.status === "downloading" ? UpdateService.downloadProgress : 1.0)
+                                                                        color: UpdateService.status === "installing" ? "#4ADE80" : themeHub.accentA
+                                                                    }
+                                                                }
+
+                                                                Rectangle {
+                                                                    width: parent.width; height: 34; radius: 12
+                                                                    color: UpdateService.updateAvailable
+                                                                           ? (abtUpdMa.containsMouse ? "#4ADE80" : themeHub.accentA)
+                                                                           : (abtUpdMa.containsMouse ? themeHub.accentB : "#FFFFFF")
+                                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                                    Text {
+                                                                        anchors.centerIn: parent
+                                                                        text: {
+                                                                            if (UpdateService.status === "checking") return "CHECKING..."
+                                                                            if (UpdateService.status === "downloading") return "DOWNLOADING..."
+                                                                            if (UpdateService.status === "verifying") return "VERIFYING SHA-256..."
+                                                                            if (UpdateService.status === "installing") return "INSTALLING..."
+                                                                            if (UpdateService.updateAvailable) return "UPDATE TO v" + UpdateService.latestVersion + " & RESTART"
+                                                                            return "CHECK FOR UPDATES"
+                                                                        }
+                                                                        font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                    }
+                                                                    MouseArea {
+                                                                        id: abtUpdMa
+                                                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                                        enabled: UpdateService.status !== "checking" && UpdateService.status !== "downloading" && UpdateService.status !== "verifying" && UpdateService.status !== "installing"
+                                                                        onClicked: {
+                                                                            if (UpdateService.updateAvailable)
+                                                                                UpdateService.startUpdate()
+                                                                            else
+                                                                                UpdateService.checkForUpdates(false)
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -10199,6 +10409,135 @@ PanelWindow {
                                 onClicked: notifPeekWindow.dismissPopupAt(index)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // Floating SekaiPop Auto-Updater Toast
+    // =========================================================================
+    PanelWindow {
+        id: updateToastWindow
+        visible: !GameModeService.active && UpdateService.toastVisible
+        clickThrough: false
+        color: "transparent"
+
+        width: 348
+        height: 98
+        x: Math.max(0, themeHub.screenW - width - 16)
+        y: (notifPeekWindow.visible ? (notifPeekWindow.y + notifPeekWindow.height + 8) : 42)
+        mask: [{ x: 0, y: 0, width: width, height: height }]
+
+        Item {
+            anchors.fill: parent
+
+            Rectangle {
+                x: 4; y: 4
+                width: parent.width - 4; height: parent.height - 4
+                radius: 18
+                color: "#1A1B2E"
+            }
+
+            Rectangle {
+                id: updToastCard
+                x: 0; y: 0
+                width: parent.width - 4; height: parent.height - 4
+                radius: 18
+                color: updToastMa.containsMouse && (UpdateService.status === "available" || UpdateService.status === "error") ? "#FEF9C3" : "#FFFFFF"
+                border.width: 3
+                border.color: "#1A1B2E"
+                antialiasing: true
+
+                Rectangle {
+                    id: updBadge
+                    x: 12; anchors.verticalCenter: parent.verticalCenter
+                    width: 40; height: 40; radius: 12
+                    color: UpdateService.status === "installing" ? "#4ADE80"
+                         : (UpdateService.status === "error" ? "#FDA4AF" : themeHub.accentA)
+                    border.width: 2.5; border.color: "#1A1B2E"
+                    Image {
+                        anchors.centerIn: parent
+                        width: 22; height: 22; smooth: true
+                        source: "qrc:/qml/icons/rocket-dark.svg"
+                    }
+                }
+
+                Column {
+                    anchors.left: updBadge.right; anchors.leftMargin: 12
+                    anchors.right: parent.right; anchors.rightMargin: 38
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 5
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: {
+                            const st = UpdateService.status
+                            if (st === "available") return "UPDATE AVAILABLE · v" + UpdateService.latestVersion
+                            if (st === "downloading") return "DOWNLOADING v" + UpdateService.latestVersion + " · " + Math.round(UpdateService.downloadProgress * 100) + "%"
+                            if (st === "verifying") return "VERIFYING SHA-256..."
+                            if (st === "installing") return "INSTALLING & RESTARTING..."
+                            if (st === "error") return "UPDATE FAILED"
+                            return "SEKAIDESK UPDATER"
+                        }
+                        font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                    }
+
+                    Text {
+                        visible: UpdateService.status === "available" || UpdateService.status === "error"
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: UpdateService.status === "error"
+                              ? (UpdateService.errorMessage + " · Click to retry")
+                              : "Click to download & install automatically"
+                        font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.DemiBold
+                        color: UpdateService.status === "error" ? "#E11D48" : "#475569"
+                    }
+
+                    Rectangle {
+                        visible: UpdateService.status === "downloading" || UpdateService.status === "verifying" || UpdateService.status === "installing"
+                        width: parent.width; height: 12; radius: 6
+                        color: "#F1F5F9"; border.width: 2; border.color: "#1A1B2E"
+                        clip: true
+                        Rectangle {
+                            height: parent.height
+                            width: parent.width * (UpdateService.status === "downloading" ? UpdateService.downloadProgress : 1.0)
+                            color: UpdateService.status === "installing" ? "#4ADE80" : themeHub.accentA
+                        }
+                    }
+
+                    Text {
+                        visible: (UpdateService.status === "downloading" || UpdateService.status === "verifying") && UpdateService.totalBytes > 0
+                        text: (UpdateService.downloadedBytes / 1048576).toFixed(1) + " / " + (UpdateService.totalBytes / 1048576).toFixed(1) + " MB"
+                        font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Bold; color: "#475569"
+                    }
+                }
+
+                MouseArea {
+                    id: updToastMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: (UpdateService.status === "available" || UpdateService.status === "error") ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (UpdateService.status === "available" || UpdateService.status === "error")
+                            UpdateService.startUpdate()
+                    }
+                }
+
+                Rectangle {
+                    visible: UpdateService.status !== "installing"
+                    anchors.right: parent.right; anchors.rightMargin: 10
+                    anchors.top: parent.top; anchors.topMargin: 8
+                    width: 24; height: 24; radius: 12
+                    color: updCloseMa.containsMouse ? "#FB7185" : "#F1F5F9"
+                    border.width: 2; border.color: "#1A1B2E"
+                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                    MouseArea {
+                        id: updCloseMa
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: UpdateService.dismissToast()
                     }
                 }
             }

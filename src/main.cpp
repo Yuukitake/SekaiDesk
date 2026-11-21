@@ -55,6 +55,8 @@
 #include "services/WallpaperService.h"
 #include "services/TaskbarManager.h"
 #include "services/GameModeService.h"
+#include "services/UpdateService.h"
+#include "services/RamCleanerService.h"
 
 namespace {
 QFile* g_logFile = nullptr;
@@ -177,8 +179,11 @@ int main(int argc, char* argv[])
     QGuiApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("SekaiDesk"));
     app.setApplicationName(QStringLiteral("SekaiDesk"));
+#ifndef SEKAIDESK_VERSION
+#define SEKAIDESK_VERSION "0.3.0"
+#endif
     app.setApplicationDisplayName(QStringLiteral("SekaiDesk"));
-    app.setApplicationVersion(QStringLiteral("0.1.0"));
+    app.setApplicationVersion(QStringLiteral(SEKAIDESK_VERSION));
     app.setWindowIcon(QIcon(QStringLiteral(":/qml/icons/sekai-app-icon.png")));
     app.setQuitOnLastWindowClosed(false);
 
@@ -227,10 +232,14 @@ int main(int argc, char* argv[])
     static WallpaperService wallpaperService(&settings);
     static TaskbarManager taskbarManager(&settings);
     static GameModeService gameModeService;
+    static UpdateService updateService;
+    static RamCleanerService ramCleanerService(&settings);
 #ifdef Q_OS_WIN
     if (!instanceTag.empty())
         gameModeService.setInstanceTag(QString::fromStdWString(instanceTag));
 #endif
+    QObject::connect(&updateService, &UpdateService::quitForUpdateRequested,
+                     &systemControl, &SystemControlService::quitApp);
     static bool s_skipTaskbarRestoreOnQuit = false;
     systemControl.setBeforeQuitCallback([]() {
         trayService.stop();
@@ -325,6 +334,10 @@ int main(int argc, char* argv[])
                                  "TaskbarManager", &taskbarManager);
     qmlRegisterSingletonInstance("SekaiDesk", 1, 0,
                                  "GameModeService", &gameModeService);
+    qmlRegisterSingletonInstance("SekaiDesk", 1, 0,
+                                 "UpdateService", &updateService);
+    qmlRegisterSingletonInstance("SekaiDesk", 1, 0,
+                                 "RamCleanerService", &ramCleanerService);
     qmlRegisterType<DwmThumbnailItem>("SekaiDesk", 1, 0,
                                       "DwmThumbnail");
 

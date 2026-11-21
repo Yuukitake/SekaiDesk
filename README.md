@@ -87,6 +87,16 @@ Auto-detects fullscreen games (or toggle via <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + 
 Intercepts volume/brightness/theme keys with a Pop-Comic Sekai OSD, alongside an 11-mode hardware-accelerated `.qsb` WASAPI audio visualizer (<i>Tide, Ribbons, Aurora, Pulse, Scope, Mirror, Ring, Dots, Sekai, Bars, Wave</i>), <kbd>Alt</kbd> + <kbd>Space</kbd> Spotlight (works even over fullscreen games), Clipboard History, and Bookshelf Drop Shelf.
 </td>
 </tr>
+<tr>
+<td valign="top">
+<b>Built-in Auto Updater (WinHTTP + SHA-256)</b><br>
+Checks GitHub Releases silently on startup or on demand from <b>06 · About</b>, surfaces a floating SekaiPop update toast, verifies downloads against <code>SHA256SUMS.txt</code>, and self-updates both Installer (<code>/S</code>) and Portable ZIP builds with automatic relaunch.
+</td>
+<td valign="top">
+<b>Stutter-Free RAM Cleaner (RamNuker Engine)</b><br>
+Integrates native NT memory-list primitives from <b>RamNuker</b>: background auto-clean triggers safely at your RAM% threshold using <b>Priority-0 Standby List</b> only (zero game micro-stutter), plus a 1-click <b>CLEAN RAM (DEEP)</b> button in the TopBar telemetry popup &amp; Settings.
+</td>
+</tr>
 </table>
 
 <img src="assets/divider.svg" alt="" width="100%">

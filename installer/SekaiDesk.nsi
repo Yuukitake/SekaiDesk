@@ -2,8 +2,8 @@
 Unicode True
 
 !define APP_NAME "SekaiDesk"
-!define APP_VERSION "0.3.0"
-!define APP_PUBLISHER "Yozora · SekaiDesk"
+!define APP_VERSION "0.3.1"
+!define APP_PUBLISHER "Yuukitake · SekaiDesk"
 !define APP_EXE "SekaiDesk.exe"
 !define UNINST_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SekaiDesk"
 
@@ -63,10 +63,12 @@ Section "SekaiDesk" SecMain
     Pop $0
     Pop $1
 
-    ; Clear previous startup entry first; SecAutostart below re-registers it if checked
-    nsExec::ExecToStack '"$INSTDIR\${APP_EXE}" --unregister-startup'
-    Pop $0
-    Pop $1
+    ; Preserve existing Start with Windows state during silent auto-updates (/S)
+    IfSilent skip_unreg_startup 0
+        nsExec::ExecToStack '"$INSTDIR\${APP_EXE}" --unregister-startup'
+        Pop $0
+        Pop $1
+    skip_unreg_startup:
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
@@ -93,10 +95,12 @@ Section "SekaiDesk" SecMain
 SectionEnd
 
 Section "Start with Windows" SecAutostart
-    SetOutPath "$INSTDIR"
-    nsExec::ExecToStack '"$INSTDIR\${APP_EXE}" --register-startup'
-    Pop $0
-    Pop $1
+    IfSilent skip_reg_startup 0
+        SetOutPath "$INSTDIR"
+        nsExec::ExecToStack '"$INSTDIR\${APP_EXE}" --register-startup'
+        Pop $0
+        Pop $1
+    skip_reg_startup:
 SectionEnd
 
 Section "Uninstall"

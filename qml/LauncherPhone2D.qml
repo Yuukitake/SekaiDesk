@@ -1357,7 +1357,10 @@ PanelWindow {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onEntered: { phoneWin.rowPick = index; phoneWin.gridIndex = -1 }
-                                onClicked: phoneWin.executeCommandRow(modelData)
+                                onClicked: {
+                                    const rowCopy = modelData
+                                    Qt.callLater(() => phoneWin.executeCommandRow(rowCopy))
+                                }
                             }
                         }
                     }
@@ -1502,8 +1505,10 @@ PanelWindow {
                                     phoneWin.ctxY = Math.max(180, Math.min(phoneBezel.height - 200, posInBezel.y))
                                     phoneWin.ctxOpen = true
                                 } else {
+                                    const appCopy = appTile.modelData
+                                    const mods = mouse.modifiers
                                     phoneWin.ctxOpen = false
-                                    phoneWin.launchApp(appTile.modelData, mouse.modifiers)
+                                    Qt.callLater(() => phoneWin.launchApp(appCopy, mods))
                                 }
                             }
                         }
@@ -1691,8 +1696,11 @@ PanelWindow {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: phoneWin.clipIndex = cRow.index
                                 onDoubleClicked: {
-                                    ClipboardService.copyIndex(cRow.modelData.origIdx)
-                                    phoneWin.closePhone()
+                                    const origIdx = cRow.modelData.origIdx
+                                    Qt.callLater(() => {
+                                        ClipboardService.copyIndex(origIdx)
+                                        phoneWin.closePhone()
+                                    })
                                 }
                             }
                         }
@@ -2006,18 +2014,20 @@ PanelWindow {
                                     id: cMenuMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         const a = phoneWin.ctxApp
+                                        const actionId = modelData.id
                                         phoneWin.ctxOpen = false
                                         if (!a || !a.target) return
-                                        if (modelData.id === "admin") {
-                                            AppLauncher.recordUsage(a.target)
-                                            AppLauncher.runElevated(a.target, a.args || "")
-                                            phoneWin.closePhone()
-                                        } else if (modelData.id === "folder") {
-                                            AppLauncher.revealInExplorer(a.target)
-                                            phoneWin.closePhone()
-                                        } else if (modelData.id === "hide") {
-                                            AppLauncher.hideApp(a.target, a.name || "")
-                                        }
+                                        Qt.callLater(() => {
+                                            if (actionId === "admin") {
+                                                AppLauncher.runElevated(a.target, a.args || "")
+                                                phoneWin.closePhone()
+                                            } else if (actionId === "folder") {
+                                                AppLauncher.revealInExplorer(a.target)
+                                                phoneWin.closePhone()
+                                            } else if (actionId === "hide") {
+                                                AppLauncher.hideApp(a.target, a.name || "")
+                                            }
+                                        })
                                     }
                                 }
                             }

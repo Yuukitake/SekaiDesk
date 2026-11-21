@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(SekaiDesk VERSION 0.3.0 LANGUAGES C CXX)
+project(SekaiDesk VERSION 0.3.1 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -34,10 +34,13 @@ qt_add_executable(SekaiDesk WIN32
     src/services/WallpaperService.h src/services/WallpaperService.cpp
     src/services/TaskbarManager.h   src/services/TaskbarManager.cpp
     src/services/GameModeService.h  src/services/GameModeService.cpp
+    src/services/UpdateService.h    src/services/UpdateService.cpp
+    src/services/RamCleanerService.h src/services/RamCleanerService.cpp
     src/SekaiDesk.rc
 )
 
 target_include_directories(SekaiDesk PRIVATE src)
+target_compile_definitions(SekaiDesk PRIVATE SEKAIDESK_VERSION="${PROJECT_VERSION}")
 
 # Smoke-test shell (Phase 0). Later phases swap this for the full SekaiPop shell.
 qt_add_resources(SekaiDesk "qml"
@@ -98,6 +101,7 @@ qt_add_resources(SekaiDesk "qml"
         qml/icons/alt-arrow-up-light.svg
         qml/icons/arrow-down-dark.svg
         qml/icons/arrow-up-dark.svg
+        qml/icons/author-pfp.png
         qml/icons/bell-dark.svg
         qml/icons/bell-light.svg
         qml/icons/bt-dark.svg

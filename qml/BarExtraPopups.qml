@@ -468,19 +468,49 @@ Item {
                         }
                     }
 
-                    // Footer: Task Manager
-                    Rectangle {
-                        width: parent.width; height: 28; radius: 10
-                        color: tmBtnMa.containsMouse ? root.themeHub.accentA : "#FFFFFF"
-                        border.width: 1.5; border.color: "#1A1B2E"
-                        Text { anchors.centerIn: parent; text: "Open Windows Task Manager"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
-                        MouseArea {
-                            id: tmBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.topBarWindow.resourcePopupOpen = false
-                                WindowTracker.openTaskManager()
+                    // Footer: Deep Clean RAM + Task Manager
+                    Row {
+                        width: parent.width; height: 30; spacing: 6
+
+                        Rectangle {
+                            width: (parent.width - 6) * 0.54; height: 30; radius: 10
+                            color: RamCleanerService.cleaning
+                                   ? "#FEF3C7"
+                                   : (ramCleanBtnMa.containsMouse ? "#4ADE80" : root.themeHub.accentB)
+                            border.width: 1.5; border.color: "#1A1B2E"
+                            Text {
+                                anchors.centerIn: parent
+                                text: RamCleanerService.cleaning ? "Cleaning..." : "CLEAN RAM (DEEP)"
+                                font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E"
+                            }
+                            MouseArea {
+                                id: ramCleanBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                enabled: !RamCleanerService.cleaning
+                                onClicked: RamCleanerService.cleanNowDeep()
                             }
                         }
+
+                        Rectangle {
+                            width: (parent.width - 6) * 0.46; height: 30; radius: 10
+                            color: tmBtnMa.containsMouse ? root.themeHub.accentA : "#FFFFFF"
+                            border.width: 1.5; border.color: "#1A1B2E"
+                            Text { anchors.centerIn: parent; text: "Task Manager"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                            MouseArea {
+                                id: tmBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.topBarWindow.resourcePopupOpen = false
+                                    WindowTracker.openTaskManager()
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        visible: RamCleanerService.lastResultText !== ""
+                        width: parent.width; elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignHCenter
+                        text: RamCleanerService.lastResultText + (RamCleanerService.lastCleanTime !== "" ? (" (" + RamCleanerService.lastCleanTime + ")") : "")
+                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Bold; color: "#334155"
                     }
                 }
             }
