@@ -12,6 +12,30 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+
+namespace {
+void attachToKillOnCloseJob(qint64 pid)
+{
+    if (pid <= 0)
+        return;
+    static HANDLE s_job = []() -> HANDLE {
+        HANDLE h = CreateJobObjectW(nullptr, nullptr);
+        if (h) {
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli{};
+            jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(h, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli));
+        }
+        return h;
+    }();
+    if (!s_job)
+        return;
+    HANDLE hProc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+    if (hProc) {
+        AssignProcessToJobObject(s_job, hProc);
+        CloseHandle(hProc);
+    }
+}
+} // namespace
 #endif
 
 MediaService::MediaService(QObject* parent)
@@ -93,6 +117,10 @@ void MediaService::startWorker()
     m_proc->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
         args->flags |= CREATE_NO_WINDOW;
     });
+    connect(m_proc, &QProcess::started, this, [this]() {
+        if (m_proc)
+            attachToKillOnCloseJob(m_proc->processId());
+    });
     connect(m_proc, &QProcess::readyReadStandardOutput,
             this, &MediaService::onStdoutReady);
 
@@ -165,6 +193,7 @@ void MediaService::startWorker()
         "}\n"
         "$cmdFile = '%1'\n"
         "$artDir = '%2'\n"
+        "$parentPid = %3\n"
         "$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])\n"
         "$last = ''\n"
         "$lastTrackKey = ''\n"
@@ -198,6 +227,7 @@ void MediaService::startWorker()
         "  return $null\n"
         "}\n"
         "while ($true) {\n"
+        "  if (($tick % 12) -eq 0 -and -not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }\n"
         "  if ([System.IO.File]::Exists($cmdFile)) {\n"
         "    $cmd = ([System.IO.File]::ReadAllText($cmdFile)).Trim()\n"
         "    [System.IO.File]::Delete($cmdFile)\n"
@@ -341,7 +371,7 @@ void MediaService::startWorker()
         "  $tick++\n"
         "  Start-Sleep -Milliseconds 250\n"
         "}\n"
-    ).arg(escapedCmdPath, escapedArtDir);
+    ).arg(escapedCmdPath, escapedArtDir).arg(QCoreApplication::applicationPid());
 
     const QByteArray utf16(reinterpret_cast<const char*>(script.utf16()),
                            script.size() * static_cast<int>(sizeof(char16_t)));

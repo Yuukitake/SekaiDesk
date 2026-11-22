@@ -97,12 +97,23 @@ static bool isAltTabCandidate(HWND hwnd, DWORD selfPid)
     return true;
 }
 
+static QHash<DWORD, QString>& pidExeCache()
+{
+    static QHash<DWORD, QString> s_cache;
+    return s_cache;
+}
+
 static QString queryProcessExe(HWND hwnd)
 {
     DWORD pid = 0;
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid == 0)
         return {};
+
+    auto& cache = pidExeCache();
+    auto it = cache.constFind(pid);
+    if (it != cache.constEnd())
+        return it.value();
 
     HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (!proc)
@@ -114,6 +125,11 @@ static QString queryProcessExe(HWND hwnd)
     if (QueryFullProcessImageNameW(proc, 0, buf, &len) && len > 0)
         result = QString::fromWCharArray(buf, static_cast<int>(len));
     CloseHandle(proc);
+    if (!result.isEmpty()) {
+        if (cache.size() > 512)
+            cache.clear();
+        cache.insert(pid, result);
+    }
     return result;
 }
 
@@ -157,7 +173,7 @@ WindowTracker::WindowTracker(QObject* parent)
     if (m_userName.isEmpty())
         m_userName = QStringLiteral("User");
 
-    m_pollTimer.setInterval(600);
+    m_pollTimer.setInterval(1000);
     connect(&m_pollTimer, &QTimer::timeout, this, &WindowTracker::refresh);
     m_pollTimer.start();
 
@@ -241,6 +257,11 @@ void WindowTracker::refresh()
     QVariantList nextList;
 
 #ifdef Q_OS_WIN
+    static int s_cacheSweepTick = 0;
+    if (++s_cacheSweepTick >= 60) {
+        s_cacheSweepTick = 0;
+        pidExeCache().clear();
+    }
     EnumContext ctx;
     ctx.selfPid = GetCurrentProcessId();
     ctx.foreground = GetForegroundWindow();

@@ -57,6 +57,7 @@ private slots:
 private:
     void readMasterState(bool emitOsdIfExternal);
     void readMicState(bool emitOsdIfExternal = false);
+    void releaseCachedEndpoints(bool includeEnumerator = true);
 
     int m_masterVolume = 50;
     bool m_masterMuted = false;
@@ -71,4 +72,11 @@ private:
     QVariantList m_outputDevices;
     QString m_defaultOutputId;
     QTimer m_pollTimer;
+    void* m_enumerator = nullptr;
+    void* m_renderVol = nullptr;
+    void* m_captureVol = nullptr;
+    int m_endpointRefreshTick = 0;
+
+public:
+    void* ensureEndpointVolume(int flow, bool forceReacquire = false);
 };

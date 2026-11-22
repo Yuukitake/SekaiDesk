@@ -17,6 +17,30 @@
 #endif
 
 namespace {
+#ifdef Q_OS_WIN
+void attachToKillOnCloseJob(qint64 pid)
+{
+    if (pid <= 0)
+        return;
+    static HANDLE s_job = []() -> HANDLE {
+        HANDLE h = CreateJobObjectW(nullptr, nullptr);
+        if (h) {
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli{};
+            jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(h, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli));
+        }
+        return h;
+    }();
+    if (!s_job)
+        return;
+    HANDLE hProc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+    if (hProc) {
+        AssignProcessToJobObject(s_job, hProc);
+        CloseHandle(hProc);
+    }
+}
+#endif
+
 QString formatNotifTimeText(qint64 timestampMs)
 {
     if (timestampMs <= 0)
@@ -173,6 +197,10 @@ void NotificationService::startWorker()
     m_proc->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
         args->flags |= CREATE_NO_WINDOW;
     });
+    connect(m_proc, &QProcess::started, this, [this]() {
+        if (m_proc)
+            attachToKillOnCloseJob(m_proc->processId());
+    });
     connect(m_proc, &QProcess::readyReadStandardOutput,
             this, &NotificationService::onStdoutReady);
 
@@ -245,6 +273,7 @@ void NotificationService::startWorker()
         "}\n"
         "$cmdFile = '%1'\n"
         "$iconDir = '%2'\n"
+        "$parentPid = %3\n"
         "$listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current\n"
         "$logoCache = @{}\n"
         "$logoSeq = 0\n"
@@ -252,6 +281,7 @@ void NotificationService::startWorker()
         "$tick = 0\n"
         "$paused = $false\n"
         "while ($true) {\n"
+        "  if (($tick % 12) -eq 0 -and -not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }\n"
         "  if ([System.IO.File]::Exists($cmdFile)) {\n"
         "    $rawCmds = [System.IO.File]::ReadAllLines($cmdFile)\n"
         "    [System.IO.File]::Delete($cmdFile)\n"
@@ -358,7 +388,7 @@ void NotificationService::startWorker()
         "  $tick++\n"
         "  Start-Sleep -Milliseconds 250\n"
         "}\n"
-    ).arg(escapedCmdPath, escapedIconDir);
+    ).arg(escapedCmdPath, escapedIconDir).arg(QCoreApplication::applicationPid());
 
     const QByteArray utf16(reinterpret_cast<const char*>(script.utf16()),
                            script.size() * static_cast<int>(sizeof(char16_t)));
