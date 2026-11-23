@@ -115,12 +115,12 @@ Item {
         Rectangle {
             width: weatherPop.width - weatherPop.cardShadow
             height: weatherPop.height - weatherPop.cardShadow
-            radius: 18; color: "#FFFFFF"
-            border.width: 2.5; border.color: "#1A1B2E"
+            radius: 18; color: root.themeHub.phoneCardBg
+            border.width: 2.5; border.color: root.themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent; anchors.margins: 3; radius: 15
-                color: "#F5F8FF"
+                color: root.themeHub.phoneScreenBg
 
                 Column {
                     id: wxCol
@@ -198,11 +198,11 @@ Item {
                             delegate: Rectangle {
                                 required property var modelData
                                 width: (parent.width - 12) / 3; height: 42; radius: 10
-                                color: "#FFFFFF"; border.width: 1.5; border.color: "#1A1B2E"
+                                color: root.themeHub.phoneCardBg; border.width: 1.5; border.color: root.themeHub.phoneBorder
                                 Column {
                                     anchors.centerIn: parent; spacing: 1
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.k; font.family: "Consolas"; font.pixelSize: 8; font.weight: Font.Black; color: "#64748B" }
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.v; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.k; font.family: "Consolas"; font.pixelSize: 8; font.weight: Font.Black; color: root.themeHub.phoneMutedInk }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.v; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: root.themeHub.phoneInk }
                                 }
                             }
                         }
@@ -217,9 +217,9 @@ Item {
                                 required property var modelData
                                 readonly property bool sel: weatherPop.tab === modelData.id
                                 width: (parent.width - 6) * 0.5; height: 26; radius: 9
-                                color: sel ? root.themeHub.accentA : "#FFFFFF"
-                                border.width: 1.5; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#1A1B2E" }
+                                color: sel ? root.themeHub.accentA : root.themeHub.phoneCardBg
+                                border.width: 1.5; border.color: sel ? "#1A1B2E" : root.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: sel ? "#1A1B2E" : root.themeHub.phoneInk }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: weatherPop.tab = modelData.id }
                             }
                         }
@@ -234,12 +234,12 @@ Item {
                             delegate: Rectangle {
                                 required property var modelData
                                 width: (parent.width - 20) / 6; height: 68; radius: 10
-                                color: "#FFFFFF"; border.width: 1.5; border.color: "#CBD5E1"
+                                color: root.themeHub.phoneCardBg; border.width: 1.5; border.color: root.themeHub.phoneBorder
                                 Column {
                                     anchors.centerIn: parent; spacing: 3
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.time || ""; font.family: "Consolas"; font.pixelSize: 9; font.weight: Font.Bold; color: "#64748B" }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.time || ""; font.family: "Consolas"; font.pixelSize: 9; font.weight: Font.Bold; color: root.themeHub.phoneMutedInk }
                                     Image { anchors.horizontalCenter: parent.horizontalCenter; width: 18; height: 18; sourceSize.width: 36; sourceSize.height: 36; source: root.weatherIconFor(modelData.code, modelData.isDay) }
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.themeHub.formatTemp(modelData.temp) + "°"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.themeHub.formatTemp(modelData.temp) + "°"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: root.themeHub.phoneInk }
                                 }
                             }
                         }
@@ -254,13 +254,13 @@ Item {
                             delegate: Rectangle {
                                 required property var modelData
                                 width: parent.width; height: 34; radius: 10
-                                color: "#FFFFFF"; border.width: 1.5; border.color: "#CBD5E1"
+                                color: root.themeHub.phoneCardBg; border.width: 1.5; border.color: root.themeHub.phoneBorder
                                 Row {
                                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
-                                    Text { anchors.verticalCenter: parent.verticalCenter; width: 72; text: modelData.label || ""; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; width: 72; text: modelData.label || ""; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: root.themeHub.phoneInk }
                                     Image { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; sourceSize.width: 36; sourceSize.height: 36; source: root.weatherIconFor(modelData.code, true) }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 178; elide: Text.ElideRight; text: modelData.condition || ""; font.family: "Segoe UI"; font.pixelSize: 10; color: "#475569" }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: root.themeHub.formatTemp(modelData.high) + "° / " + root.themeHub.formatTemp(modelData.low) + "°"; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 178; elide: Text.ElideRight; text: modelData.condition || ""; font.family: "Segoe UI"; font.pixelSize: 10; color: root.themeHub.phoneMutedInk }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; text: root.themeHub.formatTemp(modelData.high) + "° / " + root.themeHub.formatTemp(modelData.low) + "°"; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: root.themeHub.phoneInk }
                                 }
                             }
                         }
@@ -342,12 +342,12 @@ Item {
         Rectangle {
             width: resPop.width - resPop.cardShadow
             height: resPop.height - resPop.cardShadow
-            radius: 18; color: "#FFFFFF"
-            border.width: 2.5; border.color: "#1A1B2E"
+            radius: 18; color: root.themeHub.phoneCardBg
+            border.width: 2.5; border.color: root.themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent; anchors.margins: 3; radius: 15
-                color: "#F5F8FF"
+                color: root.themeHub.phoneScreenBg
 
                 Column {
                     id: resCol
@@ -438,7 +438,7 @@ Item {
                     // Top Memory Processes
                     Text {
                         text: "TOP MEMORY PROCESSES"
-                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Black; color: "#64748B"
+                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Black; color: root.themeHub.phoneMutedInk
                     }
 
                     Column {
@@ -448,20 +448,20 @@ Item {
                             delegate: Rectangle {
                                 required property var modelData
                                 width: parent.width; height: 26; radius: 8
-                                color: "#FFFFFF"; border.width: 1.5; border.color: "#CBD5E1"
+                                color: root.themeHub.phoneCardBg; border.width: 1.5; border.color: root.themeHub.phoneBorder
                                 Row {
                                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width - 78; elide: Text.ElideRight
                                         text: (modelData.name || "process") + (modelData.instances > 1 ? (" (" + modelData.instances + ")") : "")
-                                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E"
+                                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: root.themeHub.phoneInk
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: 70; horizontalAlignment: Text.AlignRight
                                         text: (modelData.ramMb || 0) + " MB"
-                                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Black; color: "#334155"
+                                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Black; color: root.themeHub.phoneMutedInk
                                     }
                                 }
                             }
@@ -492,9 +492,9 @@ Item {
 
                         Rectangle {
                             width: (parent.width - 6) * 0.46; height: 30; radius: 10
-                            color: tmBtnMa.containsMouse ? root.themeHub.accentA : "#FFFFFF"
-                            border.width: 1.5; border.color: "#1A1B2E"
-                            Text { anchors.centerIn: parent; text: "Task Manager"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                            color: tmBtnMa.containsMouse ? root.themeHub.accentA : root.themeHub.phoneCardBg
+                            border.width: 1.5; border.color: tmBtnMa.containsMouse ? "#1A1B2E" : root.themeHub.phoneBorder
+                            Text { anchors.centerIn: parent; text: "Task Manager"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: tmBtnMa.containsMouse ? "#1A1B2E" : root.themeHub.phoneInk }
                             MouseArea {
                                 id: tmBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
@@ -510,7 +510,7 @@ Item {
                         width: parent.width; elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         text: RamCleanerService.lastResultText + (RamCleanerService.lastCleanTime !== "" ? (" (" + RamCleanerService.lastCleanTime + ")") : "")
-                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Bold; color: "#334155"
+                        font.family: "Consolas"; font.pixelSize: 10; font.weight: Font.Bold; color: root.themeHub.phoneMutedInk
                     }
                 }
             }
@@ -564,11 +564,11 @@ Item {
         Rectangle {
             width: batPop.width - batPop.cardShadow
             height: batPop.height - batPop.cardShadow
-            radius: 16; color: "#FFFFFF"
-            border.width: 2; border.color: "#1A1B2E"
+            radius: 16; color: root.themeHub.phoneCardBg
+            border.width: 2; border.color: root.themeHub.phoneBorder
 
             Rectangle {
-                anchors.fill: parent; anchors.margins: 3; radius: 13; color: "#F5F8FF"
+                anchors.fill: parent; anchors.margins: 3; radius: 13; color: root.themeHub.phoneScreenBg
 
                 Column {
                     id: batCol
@@ -581,19 +581,19 @@ Item {
                         Text {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                             text: (WindowTracker.batteryCharging ? "⚡ BATTERY" : "🔋 BATTERY")
-                            font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                            font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: root.themeHub.phoneInk
                         }
                         Text {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             text: WindowTracker.batteryPercent + "%"
                             font.family: "Consolas"; font.pixelSize: 22; font.weight: Font.Black
-                            color: WindowTracker.batteryPercent <= 20 ? "#E11D48" : "#1A1B2E"
+                            color: WindowTracker.batteryPercent <= 20 ? "#FB7185" : root.themeHub.phoneInk
                         }
                     }
 
                     Rectangle {
                         width: parent.width; height: 14; radius: 7
-                        color: "#E2E8F0"; border.width: 2; border.color: "#1A1B2E"
+                        color: root.themeHub.phonePillBg; border.width: 2; border.color: root.themeHub.phoneBorder
                         Rectangle {
                             x: 2; y: 2; height: 10; radius: 5
                             width: Math.max(0, (parent.width - 4) * (WindowTracker.batteryPercent / 100.0))
@@ -604,14 +604,14 @@ Item {
                     Text {
                         width: parent.width
                         text: WindowTracker.batteryTimeText || (WindowTracker.batteryCharging ? "Plugged in" : "On Battery")
-                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#475569"
+                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: root.themeHub.phoneMutedInk
                     }
 
                     Rectangle {
                         width: parent.width; height: 28; radius: 10
-                        color: pwrSetMa.containsMouse ? root.themeHub.hoverTint : "#FFFFFF"
-                        border.width: 1.5; border.color: "#1A1B2E"
-                        Text { anchors.centerIn: parent; text: "Power & Battery Settings"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E" }
+                        color: pwrSetMa.containsMouse ? root.themeHub.hoverTint : root.themeHub.phoneCardBg
+                        border.width: 1.5; border.color: pwrSetMa.containsMouse ? "#1A1B2E" : root.themeHub.phoneBorder
+                        Text { anchors.centerIn: parent; text: "Power & Battery Settings"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: pwrSetMa.containsMouse ? "#1A1B2E" : root.themeHub.phoneInk }
                         MouseArea {
                             id: pwrSetMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {

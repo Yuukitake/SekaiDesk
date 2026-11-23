@@ -196,12 +196,12 @@ Item {
         Rectangle {
             width: timerWin.width - timerWin.cardShadow
             height: timerWin.height - timerWin.cardShadow
-            radius: 18; color: "#FFFFFF"
-            border.width: 2.5; border.color: "#1A1B2E"
+            radius: 18; color: cardsRoot.themeHub.phoneCardBg
+            border.width: 2.5; border.color: cardsRoot.themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent; anchors.margins: 3; radius: 15
-                color: "#F6F8FF"
+                color: cardsRoot.themeHub.phoneScreenBg
 
                 Column {
                     anchors.fill: parent; anchors.margins: 12; spacing: 10
@@ -219,11 +219,12 @@ Item {
                                 required property var modelData
                                 readonly property bool sel: cardsRoot.timerTab === modelData.id
                                 width: (parent.width - 12) / 3; height: 32; radius: 10
-                                color: sel ? cardsRoot.themeHub.accentA : (tTabMa.containsMouse ? cardsRoot.themeHub.hoverTint : "#FFFFFF")
-                                border.width: 2; border.color: "#1A1B2E"
+                                color: sel ? cardsRoot.themeHub.accentA : (tTabMa.containsMouse ? cardsRoot.themeHub.hoverTint : cardsRoot.themeHub.phoneCardBg)
+                                border.width: 2; border.color: (sel || tTabMa.containsMouse) ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
                                 Text {
                                     anchors.centerIn: parent; text: modelData.label
-                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E"
+                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black
+                                    color: (sel || tTabMa.containsMouse) ? "#1A1B2E" : cardsRoot.themeHub.phoneInk
                                 }
                                 MouseArea {
                                     id: tTabMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -242,13 +243,13 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: cardsRoot.fmtClock(cardsRoot.timerLeft, false)
                             font.family: "Consolas"; font.pixelSize: 48; font.weight: Font.Black
-                            color: cardsRoot.timerRunning ? "#1A1B2E" : "#475569"
+                            color: cardsRoot.timerRunning ? cardsRoot.themeHub.phoneInk : cardsRoot.themeHub.phoneMutedInk
                         }
 
                         // Progress Bar
                         Rectangle {
                             width: parent.width; height: 10; radius: 5
-                            color: "#E2E8F0"; border.width: 1.5; border.color: "#1A1B2E"
+                            color: cardsRoot.themeHub.phonePillBg; border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
                             Rectangle {
                                 x: 2; y: 2; height: 6; radius: 3
                                 width: Math.max(0, (parent.width - 4) * Math.min(1, cardsRoot.timerPresetSec > 0 ? (cardsRoot.timerLeft / cardsRoot.timerPresetSec) : 0))
@@ -265,9 +266,9 @@ Item {
                                     required property int modelData
                                     readonly property bool act: cardsRoot.timerPresetSec === modelData * 60
                                     width: 48; height: 28; radius: 9
-                                    color: act ? cardsRoot.themeHub.accentB : "#FFFFFF"
-                                    border.width: 1.5; border.color: "#1A1B2E"
-                                    Text { anchors.centerIn: parent; text: modelData + "m"; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                                    color: act ? cardsRoot.themeHub.accentB : cardsRoot.themeHub.phoneCardBg
+                                    border.width: 1.5; border.color: act ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
+                                    Text { anchors.centerIn: parent; text: modelData + "m"; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: act ? "#1A1B2E" : cardsRoot.themeHub.phoneInk }
                                     MouseArea {
                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -296,8 +297,8 @@ Item {
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: cardsRoot.toggleTimer() }
                             }
                             Rectangle {
-                                width: 76; height: 38; radius: 12; color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: "+1m"; font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E" }
+                                width: 76; height: 38; radius: 12; color: cardsRoot.themeHub.phoneCardBg; border.width: 2; border.color: cardsRoot.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: "+1m"; font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: cardsRoot.themeHub.phoneInk }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
@@ -324,7 +325,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: cardsRoot.fmtClock(cardsRoot.swElapsed, true)
                             font.family: "Consolas"; font.pixelSize: 44; font.weight: Font.Black
-                            color: cardsRoot.swRunning ? "#1A1B2E" : "#475569"
+                            color: cardsRoot.swRunning ? cardsRoot.themeHub.phoneInk : cardsRoot.themeHub.phoneMutedInk
                         }
 
                         Row {
@@ -337,8 +338,8 @@ Item {
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: cardsRoot.swRunning = !cardsRoot.swRunning }
                             }
                             Rectangle {
-                                width: 78; height: 36; radius: 11; color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: "LAP"; font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E" }
+                                width: 78; height: 36; radius: 11; color: cardsRoot.themeHub.phoneCardBg; border.width: 2; border.color: cardsRoot.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: "LAP"; font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: cardsRoot.themeHub.phoneInk }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
@@ -371,15 +372,15 @@ Item {
                                     visible: cardsRoot.swLaps.length === 0
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: "Press LAP to record split times"
-                                    font.family: "Segoe UI"; font.pixelSize: 11; color: "#64748B"
+                                    font.family: "Segoe UI"; font.pixelSize: 11; color: cardsRoot.themeHub.phoneMutedInk
                                 }
                                 Repeater {
                                     model: cardsRoot.swLaps
                                     delegate: Rectangle {
                                         required property string modelData
                                         width: lapCol.width; height: 24; radius: 8
-                                        color: "#FFFFFF"; border.width: 1.5; border.color: "#CBD5E1"
-                                        Text { anchors.centerIn: parent; text: modelData; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E" }
+                                        color: cardsRoot.themeHub.phoneCardBg; border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
+                                        Text { anchors.centerIn: parent; text: modelData; font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Bold; color: cardsRoot.themeHub.phoneInk }
                                     }
                                 }
                             }
@@ -403,9 +404,9 @@ Item {
                                     required property var modelData
                                     readonly property bool sel: cardsRoot.pomPhase === modelData.id
                                     width: 96; height: 26; radius: 9
-                                    color: sel ? cardsRoot.themeHub.accentB : "#FFFFFF"
-                                    border.width: 1.5; border.color: "#1A1B2E"
-                                    Text { anchors.centerIn: parent; text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#1A1B2E" }
+                                    color: sel ? cardsRoot.themeHub.accentB : cardsRoot.themeHub.phoneCardBg
+                                    border.width: 1.5; border.color: sel ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
+                                    Text { anchors.centerIn: parent; text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: sel ? "#1A1B2E" : cardsRoot.themeHub.phoneInk }
                                     MouseArea {
                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: { cardsRoot.pomRunning = false; cardsRoot.setPomPhaseDuration(modelData.id) }
@@ -418,7 +419,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: cardsRoot.fmtClock(cardsRoot.pomLeft, false)
                             font.family: "Consolas"; font.pixelSize: 48; font.weight: Font.Black
-                            color: cardsRoot.pomRunning ? "#1A1B2E" : "#475569"
+                            color: cardsRoot.pomRunning ? cardsRoot.themeHub.phoneInk : cardsRoot.themeHub.phoneMutedInk
                         }
 
                         // Round diamonds
@@ -429,8 +430,8 @@ Item {
                                 delegate: Rectangle {
                                     required property int index
                                     width: 12; height: 12; rotation: 45; radius: 2
-                                    color: (index + 1) <= cardsRoot.pomRound ? cardsRoot.themeHub.accentA : "#E2E8F0"
-                                    border.width: 1.5; border.color: "#1A1B2E"
+                                    color: (index + 1) <= cardsRoot.pomRound ? cardsRoot.themeHub.accentA : cardsRoot.themeHub.phonePillBg
+                                    border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
                                 }
                             }
                         }
@@ -544,12 +545,12 @@ Item {
         Rectangle {
             width: filesWin.width - filesWin.cardShadow
             height: filesWin.height - filesWin.cardShadow
-            radius: 18; color: "#FFFFFF"
-            border.width: 2.5; border.color: "#1A1B2E"
+            radius: 18; color: cardsRoot.themeHub.phoneCardBg
+            border.width: 2.5; border.color: cardsRoot.themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent; anchors.margins: 3; radius: 15
-                color: "#F6F8FF"
+                color: cardsRoot.themeHub.phoneScreenBg
 
                 Column {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
@@ -561,15 +562,15 @@ Item {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 6
                             Rectangle {
                                 visible: filesWin.trail.length > 0
-                                width: 54; height: 26; radius: 9; color: "#FFFFFF"; border.width: 1.5; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: "← Back"; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#1A1B2E" }
+                                width: 54; height: 26; radius: 9; color: cardsRoot.themeHub.phoneCardBg; border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: "← Back"; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: cardsRoot.themeHub.phoneInk }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: filesWin.goBack() }
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 250; elide: Text.ElideMiddle
                                 text: filesWin.currentFolderPath !== "" ? filesWin.currentFolderPath : "Files"
-                                font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E"
+                                font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: cardsRoot.themeHub.phoneInk
                             }
                         }
 
@@ -585,8 +586,8 @@ Item {
                                 }
                             }
                             Rectangle {
-                                width: 28; height: 26; radius: 9; color: "#FFFFFF"; border.width: 1.5; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: "↻"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                width: 28; height: 26; radius: 9; color: cardsRoot.themeHub.phoneCardBg; border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: "↻"; font.pixelSize: 13; font.weight: Font.Black; color: cardsRoot.themeHub.phoneInk }
                                 MouseArea {
                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: filesWin.allFiles = WindowTracker.listFolderFiles(filesWin.currentFolderPath, 60)
@@ -609,26 +610,26 @@ Item {
                                 required property var modelData
                                 readonly property bool sel: filesWin.activePlace === modelData.k && filesWin.trail.length === 0
                                 width: (parent.width - 134) / 4; height: 28; radius: 9
-                                color: sel ? cardsRoot.themeHub.accentA : "#FFFFFF"
-                                border.width: 1.5; border.color: "#1A1B2E"
-                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#1A1B2E" }
+                                color: sel ? cardsRoot.themeHub.accentA : cardsRoot.themeHub.phoneCardBg
+                                border.width: 1.5; border.color: sel ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: sel ? "#1A1B2E" : cardsRoot.themeHub.phoneInk }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: filesWin.loadPlace(modelData.k) }
                             }
                         }
                         Rectangle {
-                            width: 110; height: 28; radius: 9; color: "#FFFFFF"; border.width: 1.5; border.color: "#1A1B2E"
+                            width: 110; height: 28; radius: 9; color: cardsRoot.themeHub.phoneSubBg; border.width: 1.5; border.color: cardsRoot.themeHub.phoneBorder
                             clip: true
                             TextInput {
                                 id: filesSearchInput
                                 anchors.fill: parent; anchors.margins: 6
                                 verticalAlignment: TextInput.AlignVCenter
-                                font.family: "Segoe UI"; font.pixelSize: 10; color: "#1A1B2E"
+                                font.family: "Segoe UI"; font.pixelSize: 10; color: cardsRoot.themeHub.phoneInk
                                 onTextChanged: filesWin.searchQuery = text
                                 Text {
                                     visible: parent.text === ""
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "Filter..."
-                                    font.family: "Segoe UI"; font.pixelSize: 10; color: "#94A3B8"
+                                    font.family: "Segoe UI"; font.pixelSize: 10; color: cardsRoot.themeHub.phoneMutedInk
                                 }
                             }
                         }
@@ -642,7 +643,7 @@ Item {
                             visible: filesWin.filteredFiles.length === 0
                             anchors.centerIn: parent
                             text: "Folder is empty"
-                            font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Bold; color: "#64748B"
+                            font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Bold; color: cardsRoot.themeHub.phoneMutedInk
                         }
 
                         GridView {
@@ -658,8 +659,8 @@ Item {
                                 width: 90; height: 92
                                 Rectangle {
                                     anchors.fill: parent; anchors.margins: 2; radius: 12
-                                    color: gTileMa.containsMouse ? cardsRoot.themeHub.hoverTint : "#FFFFFF"
-                                    border.width: 1.5; border.color: gTileMa.containsMouse ? "#1A1B2E" : "#CBD5E1"
+                                    color: gTileMa.containsMouse ? cardsRoot.themeHub.hoverTint : cardsRoot.themeHub.phoneCardBg
+                                    border.width: 1.5; border.color: gTileMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
 
                                     Column {
                                         anchors.fill: parent; anchors.margins: 6; spacing: 4
@@ -694,7 +695,8 @@ Item {
                                         Text {
                                             width: parent.width; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
                                             text: modelData.name || ""
-                                            font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Bold; color: "#1A1B2E"
+                                            font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Bold
+                                            color: gTileMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneInk
                                         }
                                     }
                                     MouseArea {
@@ -721,8 +723,8 @@ Item {
                             delegate: Rectangle {
                                 required property var modelData
                                 width: ListView.view.width; height: 34; radius: 10
-                                color: lRowMa.containsMouse ? cardsRoot.themeHub.hoverTint : "#FFFFFF"
-                                border.width: 1.5; border.color: "#CBD5E1"
+                                color: lRowMa.containsMouse ? cardsRoot.themeHub.hoverTint : cardsRoot.themeHub.phoneCardBg
+                                border.width: 1.5; border.color: lRowMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
                                 Row {
                                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8
                                     Rectangle {
@@ -736,13 +738,15 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width - 150; elide: Text.ElideRight
                                         text: modelData.name || ""
-                                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E"
+                                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold
+                                        color: lRowMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneInk
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: 96; horizontalAlignment: Text.AlignRight
                                         text: modelData.sizeText || ""
-                                        font.family: "Consolas"; font.pixelSize: 10; color: "#64748B"
+                                        font.family: "Consolas"; font.pixelSize: 10
+                                        color: lRowMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneMutedInk
                                     }
                                 }
                                 MouseArea {
@@ -763,9 +767,9 @@ Item {
                     // Footer: Open Folder in Explorer
                     Rectangle {
                         width: parent.width; height: 28; radius: 10
-                        color: expBtnMa.containsMouse ? cardsRoot.themeHub.accentA : "#FFFFFF"
-                        border.width: 1.5; border.color: "#1A1B2E"
-                        Text { anchors.centerIn: parent; text: "Open in Explorer"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E" }
+                        color: expBtnMa.containsMouse ? cardsRoot.themeHub.accentA : cardsRoot.themeHub.phoneCardBg
+                        border.width: 1.5; border.color: expBtnMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneBorder
+                        Text { anchors.centerIn: parent; text: "Open in Explorer"; font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: expBtnMa.containsMouse ? "#1A1B2E" : cardsRoot.themeHub.phoneInk }
                         MouseArea {
                             id: expBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {

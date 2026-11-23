@@ -38,6 +38,10 @@ class WindowTracker : public QObject {
     Q_PROPERTY(QString ramDetailText READ ramDetailText NOTIFY statsChanged)
     Q_PROPERTY(QString machineName READ machineName CONSTANT)
     Q_PROPERTY(QString userName READ userName CONSTANT)
+    Q_PROPERTY(QString cpuSpec READ cpuSpec CONSTANT)
+    Q_PROPERTY(QString ramSpec READ ramSpec CONSTANT)
+    Q_PROPERTY(QString gpuSpec READ gpuSpec CONSTANT)
+    Q_PROPERTY(QString osSpec READ osSpec CONSTANT)
     Q_PROPERTY(bool desktopOccluded READ desktopOccluded NOTIFY desktopOccludedChanged)
 
 public:
@@ -71,6 +75,10 @@ public:
     QString ramDetailText() const { return m_ramDetailText; }
     QString machineName() const { return m_machineName; }
     QString userName() const { return m_userName; }
+    QString cpuSpec() const { return m_cpuSpec; }
+    QString ramSpec() const { return m_ramSpec; }
+    QString gpuSpec() const { return m_gpuSpec; }
+    QString osSpec() const { return m_osSpec; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE QVariantMap stateForTarget(const QString& target) const;
@@ -91,6 +99,7 @@ public:
     Q_INVOKABLE void lockWorkstation();
     Q_INVOKABLE void sleepComputer();
     Q_INVOKABLE void takeScreenshot();
+    Q_INVOKABLE void checkLowBatteryAlert();
 
 signals:
     void runningAppsChanged();
@@ -104,6 +113,7 @@ signals:
     void rightEdgeHoveredChanged();
     void activeWindowChanged();
     void statsChanged();
+    void lowBatteryAlert(int percent, bool critical);
     void desktopOccludedChanged();
 
 private:
@@ -149,12 +159,18 @@ private:
     int m_batteryPercent = 100;
     bool m_batteryCharging = false;
     QString m_batteryTimeText;
+    int m_lowBatteryAlertTier = 0; // 0 = none, 1 = warned (<=20%), 2 = critical (<=10%)
+    bool m_batteryAlertArmed = false;
     QString m_ramDetailText;
     QVariantList m_cpuHistory;
     QVariantList m_ramHistory;
     int m_historyTick = 0;
     QString m_machineName;
     QString m_userName;
+    QString m_cpuSpec;
+    QString m_ramSpec;
+    QString m_gpuSpec;
+    QString m_osSpec;
     struct CpuSample {
         quint64 idle = 0;
         quint64 total = 0;

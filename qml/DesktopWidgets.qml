@@ -3744,17 +3744,30 @@ Item {
         property bool searchOpen: false
         allowFocus: searchOpen
         cardWidth: 560
-        cardHeight: 196
+        cardHeight: 220
         targetX: themeHub.wLyricsX
         targetY: themeHub.wLyricsY
         visible: themeHub.wLyricsVisible && !widgetsRoot.fullscreenActive
 
         property bool hovered: false
+        property string subLang: ConfigStore.stringValue("lyrics.subLang", "en")
+        Component.onCompleted: LyricsService.setTranslateLang(subLang)
         readonly property var linesList: LyricsService.lines || []
+        readonly property var transList: LyricsService.translatedLines || []
         readonly property int actIdx: LyricsService.activeIndex
         readonly property bool validSync: LyricsService.hasLyrics && linesList.length > 0
         readonly property var prevLine: (validSync && actIdx > 0 && actIdx - 1 < linesList.length) ? linesList[actIdx - 1] : null
         readonly property var curLine: (validSync && actIdx >= 0 && actIdx < linesList.length) ? linesList[actIdx] : (validSync ? linesList[0] : null)
+        readonly property int curSubIdx: actIdx >= 0 ? actIdx : 0
+        readonly property string curSubText: {
+            if (subLang === "off" || !validSync || curSubIdx < 0 || curSubIdx >= transList.length)
+                return ""
+            const s = (transList[curSubIdx] || "").trim()
+            const orig = curLine ? (curLine.text || "").trim() : ""
+            if (s === "" || s === orig || orig === "♪")
+                return ""
+            return s
+        }
         readonly property var nextLine: (validSync && actIdx >= 0 && actIdx + 1 < linesList.length) ? linesList[actIdx + 1] : (validSync && actIdx < 0 && linesList.length > 1 ? linesList[1] : null)
 
         DragSurface {
@@ -3834,6 +3847,27 @@ Item {
                     }
                 }
 
+                Rectangle {
+                    width: Math.max(48, subBtnLbl.implicitWidth + 14); height: 26; radius: 13
+                    color: lyricsWin.subLang !== "off" ? themeHub.accentB : "#FFFFFF"
+                    border.color: themeHub.darkInk; border.width: 2
+                    Text {
+                        id: subBtnLbl
+                        anchors.centerIn: parent
+                        text: lyricsWin.subLang === "off" ? "SUB: OFF" : ("SUB: " + lyricsWin.subLang.toUpperCase())
+                        font.pixelSize: 10; font.weight: Font.Black
+                        color: themeHub.darkInk
+                    }
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const next = lyricsWin.subLang === "en" ? "vi" : (lyricsWin.subLang === "vi" ? "off" : "en")
+                            lyricsWin.subLang = next
+                            ConfigStore.set("lyrics.subLang", next)
+                            LyricsService.setTranslateLang(next)
+                        }
+                    }
+                }
                 Rectangle {
                     width: 26; height: 26; radius: 13
                     color: lyricsWin.searchOpen ? themeHub.accentA : "#FFFFFF"
@@ -3919,6 +3953,20 @@ Item {
                     shadowShift: 3
                     popOnChange: true
                 }
+            }
+
+            // Bilingual Subtitle Line (EN / VI) underneath active lyric
+            StickerText {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: lyricsWin.validSync && lyricsWin.curSubText !== ""
+                text: lyricsWin.curSubText
+                fontSize: 13
+                maxWidth: lyricsWin.width - 36
+                fillColor: "#FEF08A"
+                inkColor: themeHub.darkInk
+                inkThickness: 2
+                haloThickness: 1
+                shadowShift: 2
             }
 
             // Next Line (tilted anticipation sticker)

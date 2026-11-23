@@ -8,6 +8,12 @@ Item {
 
     property color wipeFrom: "#00FFCB"
     property color wipeTo: "#04FEEE"
+    property bool darkMode: false
+
+    readonly property color surfaceColor: darkMode ? "#1C2136" : "#FFFFFF"
+    readonly property color tileBorderColor: darkMode ? "#384166" : "#1A1B2E"
+    readonly property color titleColor: darkMode ? "#F1F5F9" : "#1A1B2E"
+    readonly property color subColor: darkMode ? "#94A3B8" : "#475569"
 
     property string num: "01"
     property string title: ""
@@ -82,13 +88,13 @@ Item {
             }
         }
 
-        // Navy outline + white inner ring
+        // Navy outline + inner ring
         SekaiSlant {
             anchors.fill: parent
             skew: root.skew
             radius: 38
-            color: "#FFFFFF"
-            borderColor: "#1A1B2E"
+            color: root.surfaceColor
+            borderColor: root.litP > 0.5 ? (root.darkMode ? "#FB923C" : "#EA580C") : root.tileBorderColor
             borderWidth: root.borderW
         }
 
@@ -101,10 +107,10 @@ Item {
             height: Math.max(0, root.tileH - 2 * root.ringInset)
             skew: root.skew
             radius: Math.max(0, 38 - root.ringInset)
-            color: "#FFFFFF"
+            color: root.surfaceColor
         }
 
-        // Left-to-right active-band accent wipe on hover
+        // Left-to-right warm highlight wipe on hover
         SekaiSlant {
             readonly property real fx: root.insetX(root.ringInset)
             visible: root.litP > 0.01
@@ -114,11 +120,9 @@ Item {
             height: Math.max(0, root.tileH - 2 * root.ringInset)
             skew: root.skew
             radius: Math.max(0, 38 - root.ringInset)
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: root.wipeFrom }
-                GradientStop { position: 1.0; color: root.wipeTo }
-            }
+            color: root.darkMode
+                ? Qt.rgba(251 / 255, 146 / 255, 60 / 255, 0.14)
+                : Qt.rgba(249 / 255, 115 / 255, 22 / 255, 0.12)
         }
 
         // Sheared content matching plate lean
@@ -141,7 +145,11 @@ Item {
                 font.family: "Segoe UI"
                 font.pixelSize: 66
                 font.weight: Font.Black
-                color: Qt.rgba(26 / 255, 27 / 255, 46 / 255, 0.14 + 0.06 * root.litP)
+                color: root.litP > 0.5
+                    ? Qt.rgba(251 / 255, 146 / 255, 60 / 255, 0.30)
+                    : (root.darkMode
+                        ? Qt.rgba(241 / 255, 245 / 255, 249 / 255, 0.14)
+                        : Qt.rgba(26 / 255, 27 / 255, 46 / 255, 0.14))
             }
 
             // 45-deg colored diamond badge
@@ -200,7 +208,7 @@ Item {
                 font.family: "Segoe UI"
                 font.pixelSize: 34
                 font.weight: Font.Black
-                color: "#1A1B2E"
+                color: root.litP > 0.5 ? (root.darkMode ? "#FB923C" : "#EA580C") : root.titleColor
             }
 
             Text {
@@ -212,7 +220,7 @@ Item {
                 font.family: "Segoe UI"
                 font.pixelSize: 18
                 font.weight: Font.DemiBold
-                color: root.litP > 0.5 ? Qt.rgba(26 / 255, 27 / 255, 46 / 255, 0.85) : "#475569"
+                color: root.litP > 0.5 ? (root.darkMode ? "#FDBA74" : "#C2410C") : root.subColor
             }
         }
     }

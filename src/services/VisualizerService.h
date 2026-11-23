@@ -105,7 +105,7 @@ private:
     MediaService* m_media = nullptr;
 
     bool m_enabled = false;
-    QString m_style = QStringLiteral("bars");
+    QString m_style = QStringLiteral("tide");
     int m_sizeIndex = 1;
     int m_colorMode = 0;
     qreal m_sensitivity = 1.0;

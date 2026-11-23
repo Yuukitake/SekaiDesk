@@ -9,8 +9,10 @@
 #include <QHash>
 #include <QHostAddress>
 #include <QNetworkInterface>
+#include <QPointer>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSettings>
 #include <QTimer>
 #include <QUrl>
@@ -1189,108 +1191,133 @@ bool setRadioState(int targetKind, int nextState) {
 void SystemControlService::refreshWifi()
 {
 #ifdef Q_OS_WIN
-    m_wifiSupported = false;
-    m_wifiEnabled = false;
-    m_wifiNetworks.clear();
-
-    bool rtSupported = false;
-    bool rtEnabled = false;
-    if (WinRtRadio::queryRadio(1 /*WiFi*/, rtSupported, rtEnabled) && rtSupported) {
-        m_wifiSupported = true;
-        m_wifiEnabled = rtEnabled;
-    }
-
-    HMODULE mod = LoadLibraryW(L"wlanapi.dll");
-    if (!mod) {
-        emit wifiChanged();
+    if (m_wifiBusy.exchange(true))
         return;
-    }
-    using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
-    using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
-    using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
-    using FnFree = void(WINAPI*)(PVOID);
-    using FnQuery = DWORD(WINAPI*)(HANDLE, const GUID*, int, PVOID, PDWORD, PVOID*, PVOID);
-    using FnScan = DWORD(WINAPI*)(HANDLE, const GUID*, const WlanSsid*, PVOID, PVOID);
-    using FnAvail = DWORD(WINAPI*)(HANDLE, const GUID*, DWORD, PVOID, WlanAvailNetList**);
 
-    auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
-    auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
-    auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
-    auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
-    auto pQuery = reinterpret_cast<FnQuery>(GetProcAddress(mod, "WlanQueryInterface"));
-    auto pScan = reinterpret_cast<FnScan>(GetProcAddress(mod, "WlanScan"));
-    auto pAvail = reinterpret_cast<FnAvail>(GetProcAddress(mod, "WlanGetAvailableNetworkList"));
-    if (!pOpen || !pClose || !pEnum || !pFree || !pAvail) {
-        emit wifiChanged();
-        return;
-    }
-
-    DWORD negVer = 0;
-    HANDLE hClient = nullptr;
-    if (pOpen(2, nullptr, &negVer, &hClient) != ERROR_SUCCESS || !hClient) {
-        emit wifiChanged();
-        return;
-    }
-
-    WlanIfaceInfoList* ifList = nullptr;
-    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
-        m_wifiSupported = true;
-        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
-        if (!rtSupported && pQuery) {
-            DWORD sz = 0;
-            WlanRadioState* rs = nullptr;
-            if (pQuery(hClient, &guid, 7 /*wlan_intf_opcode_radio_state*/, nullptr, &sz,
-                       reinterpret_cast<PVOID*>(&rs), nullptr) == ERROR_SUCCESS && rs) {
-                if (rs->dwNumberOfPhys > 0)
-                    m_wifiEnabled = (rs->PhyRadioState[0].dot11SoftwareRadioState == 1);
-                pFree(rs);
-            }
-        }
-
-        if (m_wifiEnabled) {
-            if (pScan)
-                pScan(hClient, &guid, nullptr, nullptr, nullptr);
-            WlanAvailNetList* nets = nullptr;
-            if (pAvail(hClient, &guid, 0, nullptr, &nets) == ERROR_SUCCESS && nets) {
-                QHash<QString, int> seenIdx;
-                for (DWORD i = 0; i < nets->dwNumberOfItems; ++i) {
-                    const WlanAvailNet& n = nets->Network[i];
-                    if (n.dot11Ssid.uSSIDLength == 0)
-                        continue;
-                    const QString ssid = QString::fromUtf8(
-                        reinterpret_cast<const char*>(n.dot11Ssid.ucSSID),
-                        static_cast<int>(qMin<ULONG>(n.dot11Ssid.uSSIDLength, 32)));
-                    const bool connected = (n.dwFlags & 0x1) != 0;
-                    const QString profile = QString::fromWCharArray(n.strProfileName);
-                    const int sig = static_cast<int>(n.wlanSignalQuality);
-                    if (seenIdx.contains(ssid)) {
-                        const int idx = seenIdx.value(ssid);
-                        QVariantMap old = m_wifiNetworks[idx].toMap();
-                        if (connected || sig > old.value(QStringLiteral("signal")).toInt()) {
-                            old.insert(QStringLiteral("signal"), sig);
-                            old.insert(QStringLiteral("connected"), connected || old.value(QStringLiteral("connected")).toBool());
-                            if (!profile.isEmpty())
-                                old.insert(QStringLiteral("profile"), profile);
-                            m_wifiNetworks[idx] = old;
-                        }
-                        continue;
-                    }
-                    QVariantMap m;
-                    m.insert(QStringLiteral("ssid"), ssid);
-                    m.insert(QStringLiteral("profile"), profile);
-                    m.insert(QStringLiteral("signal"), sig);
-                    m.insert(QStringLiteral("secured"), n.bSecurityEnabled != FALSE);
-                    m.insert(QStringLiteral("connected"), connected);
-                    seenIdx.insert(ssid, m_wifiNetworks.size());
-                    m_wifiNetworks.append(m);
-                }
-                pFree(nets);
-            }
-        }
-        pFree(ifList);
-    }
-    pClose(hClient, nullptr);
+    m_wifiScanning = true;
     emit wifiChanged();
+
+    QPointer<SystemControlService> self(this);
+    std::thread([self]() {
+        bool supported = false;
+        bool enabled = false;
+        QVariantList netsOut;
+
+        bool rtSupported = false;
+        bool rtEnabled = false;
+        if (WinRtRadio::queryRadio(1 /*WiFi*/, rtSupported, rtEnabled) && rtSupported) {
+            supported = true;
+            enabled = rtEnabled;
+        }
+
+        HMODULE mod = LoadLibraryW(L"wlanapi.dll");
+        if (mod) {
+            using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
+            using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
+            using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
+            using FnFree = void(WINAPI*)(PVOID);
+            using FnQuery = DWORD(WINAPI*)(HANDLE, const GUID*, int, PVOID, PDWORD, PVOID*, PVOID);
+            using FnScan = DWORD(WINAPI*)(HANDLE, const GUID*, const WlanSsid*, PVOID, PVOID);
+            using FnAvail = DWORD(WINAPI*)(HANDLE, const GUID*, DWORD, PVOID, WlanAvailNetList**);
+
+            auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
+            auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
+            auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
+            auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
+            auto pQuery = reinterpret_cast<FnQuery>(GetProcAddress(mod, "WlanQueryInterface"));
+            auto pScan = reinterpret_cast<FnScan>(GetProcAddress(mod, "WlanScan"));
+            auto pAvail = reinterpret_cast<FnAvail>(GetProcAddress(mod, "WlanGetAvailableNetworkList"));
+            if (pOpen && pClose && pEnum && pFree && pAvail) {
+                DWORD negVer = 0;
+                HANDLE hClient = nullptr;
+                if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
+                    WlanIfaceInfoList* ifList = nullptr;
+                    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
+                        supported = true;
+                        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
+                        if (!rtSupported && pQuery) {
+                            DWORD sz = 0;
+                            WlanRadioState* rs = nullptr;
+                            if (pQuery(hClient, &guid, 7 /*wlan_intf_opcode_radio_state*/, nullptr, &sz,
+                                       reinterpret_cast<PVOID*>(&rs), nullptr) == ERROR_SUCCESS && rs) {
+                                if (rs->dwNumberOfPhys > 0)
+                                    enabled = (rs->PhyRadioState[0].dot11SoftwareRadioState == 1);
+                                pFree(rs);
+                            }
+                        }
+
+                        if (enabled) {
+                            if (pScan)
+                                pScan(hClient, &guid, nullptr, nullptr, nullptr);
+                            WlanAvailNetList* nets = nullptr;
+                            if (pAvail(hClient, &guid, 0, nullptr, &nets) == ERROR_SUCCESS && nets) {
+                                QHash<QString, int> seenIdx;
+                                for (DWORD i = 0; i < nets->dwNumberOfItems; ++i) {
+                                    const WlanAvailNet& n = nets->Network[i];
+                                    if (n.dot11Ssid.uSSIDLength == 0)
+                                        continue;
+                                    const QString ssid = QString::fromUtf8(
+                                        reinterpret_cast<const char*>(n.dot11Ssid.ucSSID),
+                                        static_cast<int>(qMin<ULONG>(n.dot11Ssid.uSSIDLength, 32)));
+                                    const bool connected = (n.dwFlags & 0x1) != 0;
+                                    const QString profile = QString::fromWCharArray(n.strProfileName);
+                                    const int sig = static_cast<int>(n.wlanSignalQuality);
+                                    if (seenIdx.contains(ssid)) {
+                                        const int idx = seenIdx.value(ssid);
+                                        QVariantMap old = netsOut[idx].toMap();
+                                        if (connected || sig > old.value(QStringLiteral("signal")).toInt()) {
+                                            old.insert(QStringLiteral("signal"), sig);
+                                            old.insert(QStringLiteral("connected"), connected || old.value(QStringLiteral("connected")).toBool());
+                                            if (!profile.isEmpty())
+                                                old.insert(QStringLiteral("profile"), profile);
+                                            netsOut[idx] = old;
+                                        }
+                                        continue;
+                                    }
+                                    QVariantMap m;
+                                    m.insert(QStringLiteral("ssid"), ssid);
+                                    m.insert(QStringLiteral("profile"), profile);
+                                    m.insert(QStringLiteral("signal"), sig);
+                                    m.insert(QStringLiteral("secured"), n.bSecurityEnabled != FALSE);
+                                    m.insert(QStringLiteral("connected"), connected);
+                                    seenIdx.insert(ssid, netsOut.size());
+                                    netsOut.append(m);
+                                }
+                                pFree(nets);
+                            }
+                        }
+                        pFree(ifList);
+                    }
+                    pClose(hClient, nullptr);
+                }
+            }
+        }
+
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, supported, enabled, netsOut]() {
+            if (!self)
+                return;
+            self->m_wifiSupported = supported;
+            self->m_wifiEnabled = enabled;
+            self->m_wifiNetworks = netsOut;
+            self->m_wifiScanning = false;
+            if (!self->m_wifiConnectingSsid.isEmpty()) {
+                for (const QVariant& v : netsOut) {
+                    const QVariantMap m = v.toMap();
+                    if (m.value(QStringLiteral("connected")).toBool()
+                        && (m.value(QStringLiteral("ssid")).toString() == self->m_wifiConnectingSsid
+                            || m.value(QStringLiteral("profile")).toString() == self->m_wifiConnectingSsid)) {
+                        self->m_wifiConnectingSsid.clear();
+                        self->m_wifiStatusText.clear();
+                        break;
+                    }
+                }
+            }
+            self->m_wifiBusy.store(false);
+            emit self->wifiChanged();
+        }, Qt::QueuedConnection);
+    }).detach();
 #endif
 }
 
@@ -1298,41 +1325,58 @@ void SystemControlService::toggleWifi()
 {
 #ifdef Q_OS_WIN
     const int nextState = m_wifiEnabled ? 2 /*Off*/ : 1 /*On*/;
-    if (!WinRtRadio::setRadioState(1 /*WiFi*/, nextState)) {
-        HMODULE mod = LoadLibraryW(L"wlanapi.dll");
-        if (mod) {
-            using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
-            using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
-            using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
-            using FnFree = void(WINAPI*)(PVOID);
-            using FnSet = DWORD(WINAPI*)(HANDLE, const GUID*, int, DWORD, PVOID, PVOID);
+    m_wifiEnabled = (nextState == 1);
+    if (!m_wifiEnabled) {
+        m_wifiNetworks.clear();
+        m_wifiConnectingSsid.clear();
+        m_wifiStatusText.clear();
+    }
+    emit wifiChanged();
 
-            auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
-            auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
-            auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
-            auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
-            auto pSet = reinterpret_cast<FnSet>(GetProcAddress(mod, "WlanSetInterface"));
-            if (pOpen && pClose && pEnum && pFree && pSet) {
-                DWORD negVer = 0;
-                HANDLE hClient = nullptr;
-                if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
-                    WlanIfaceInfoList* ifList = nullptr;
-                    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
-                        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
-                        WlanPhyRadioState prs{};
-                        prs.dwPhyIndex = 0;
-                        prs.dot11SoftwareRadioState = static_cast<DWORD>(nextState);
-                        pSet(hClient, &guid, 7 /*wlan_intf_opcode_radio_state*/, sizeof(prs), &prs, nullptr);
-                        pFree(ifList);
+    QPointer<SystemControlService> self(this);
+    std::thread([self, nextState]() {
+        if (!WinRtRadio::setRadioState(1 /*WiFi*/, nextState)) {
+            HMODULE mod = LoadLibraryW(L"wlanapi.dll");
+            if (mod) {
+                using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
+                using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
+                using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
+                using FnFree = void(WINAPI*)(PVOID);
+                using FnSet = DWORD(WINAPI*)(HANDLE, const GUID*, int, DWORD, PVOID, PVOID);
+
+                auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
+                auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
+                auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
+                auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
+                auto pSet = reinterpret_cast<FnSet>(GetProcAddress(mod, "WlanSetInterface"));
+                if (pOpen && pClose && pEnum && pFree && pSet) {
+                    DWORD negVer = 0;
+                    HANDLE hClient = nullptr;
+                    if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
+                        WlanIfaceInfoList* ifList = nullptr;
+                        if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
+                            const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
+                            WlanPhyRadioState prs{};
+                            prs.dwPhyIndex = 0;
+                            prs.dot11SoftwareRadioState = static_cast<DWORD>(nextState);
+                            pSet(hClient, &guid, 7 /*wlan_intf_opcode_radio_state*/, sizeof(prs), &prs, nullptr);
+                            pFree(ifList);
+                        }
+                        pClose(hClient, nullptr);
                     }
-                    pClose(hClient, nullptr);
                 }
             }
         }
-    }
-    refreshWifi();
-    if (nextState == 1)
-        QTimer::singleShot(700, this, &SystemControlService::refreshWifi);
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, nextState]() {
+            if (!self)
+                return;
+            self->refreshWifi();
+            if (nextState == 1)
+                QTimer::singleShot(900, self, &SystemControlService::refreshWifi);
+        }, Qt::QueuedConnection);
+    }).detach();
 #endif
 }
 
@@ -1341,121 +1385,420 @@ void SystemControlService::connectWifi(const QString& ssid)
 #ifdef Q_OS_WIN
     if (ssid.isEmpty())
         return;
-    HMODULE mod = LoadLibraryW(L"wlanapi.dll");
-    if (!mod)
-        return;
-    using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
-    using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
-    using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
-    using FnFree = void(WINAPI*)(PVOID);
-    using FnConnect = DWORD(WINAPI*)(HANDLE, const GUID*, const WlanConnParams*, PVOID);
+    m_wifiConnectingSsid = ssid;
+    m_wifiStatusText = QStringLiteral("Connecting to %1...").arg(ssid);
+    emit wifiChanged();
 
-    auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
-    auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
-    auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
-    auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
-    auto pConn = reinterpret_cast<FnConnect>(GetProcAddress(mod, "WlanConnect"));
-    if (!pOpen || !pClose || !pEnum || !pFree || !pConn)
-        return;
+    QPointer<SystemControlService> self(this);
+    std::thread([self, ssid]() {
+        bool ok = false;
+        HMODULE mod = LoadLibraryW(L"wlanapi.dll");
+        if (mod) {
+            using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
+            using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
+            using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
+            using FnFree = void(WINAPI*)(PVOID);
+            using FnConnect = DWORD(WINAPI*)(HANDLE, const GUID*, const WlanConnParams*, PVOID);
 
-    DWORD negVer = 0;
-    HANDLE hClient = nullptr;
-    if (pOpen(2, nullptr, &negVer, &hClient) != ERROR_SUCCESS || !hClient)
-        return;
-    WlanIfaceInfoList* ifList = nullptr;
-    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
-        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
-        const std::wstring wProfile = ssid.toStdWString();
-        WlanConnParams cp{};
-        cp.wlanConnectionMode = 0; // wlan_connection_mode_profile
-        cp.strProfile = wProfile.c_str();
-        cp.dot11BssType = 1; // dot11_BSS_type_infrastructure
-        pConn(hClient, &guid, &cp, nullptr);
-        pFree(ifList);
-    }
-    pClose(hClient, nullptr);
-    refreshWifi();
+            auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
+            auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
+            auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
+            auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
+            auto pConn = reinterpret_cast<FnConnect>(GetProcAddress(mod, "WlanConnect"));
+            if (pOpen && pClose && pEnum && pFree && pConn) {
+                DWORD negVer = 0;
+                HANDLE hClient = nullptr;
+                if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
+                    WlanIfaceInfoList* ifList = nullptr;
+                    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
+                        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
+                        const std::wstring wProfile = ssid.toStdWString();
+                        WlanConnParams cp{};
+                        cp.wlanConnectionMode = 0; // wlan_connection_mode_profile
+                        cp.strProfile = wProfile.c_str();
+                        cp.dot11BssType = 1; // dot11_BSS_type_infrastructure
+                        ok = (pConn(hClient, &guid, &cp, nullptr) == ERROR_SUCCESS);
+                        pFree(ifList);
+                    }
+                    pClose(hClient, nullptr);
+                }
+            }
+        }
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, ssid, ok]() {
+            if (!self)
+                return;
+            if (!ok) {
+                self->m_wifiConnectingSsid.clear();
+                self->m_wifiStatusText = QStringLiteral("Failed to connect to %1").arg(ssid);
+                emit self->wifiChanged();
+                return;
+            }
+            self->refreshWifi();
+            QTimer::singleShot(1500, self, &SystemControlService::refreshWifi);
+            QTimer::singleShot(3500, self, &SystemControlService::refreshWifi);
+            QTimer::singleShot(4500, self, [self, ssid]() {
+                if (self && self->m_wifiConnectingSsid == ssid) {
+                    self->m_wifiConnectingSsid.clear();
+                    self->m_wifiStatusText.clear();
+                    emit self->wifiChanged();
+                }
+            });
+        }, Qt::QueuedConnection);
+    }).detach();
 #else
     Q_UNUSED(ssid);
 #endif
 }
 
-void SystemControlService::refreshBluetooth()
+void SystemControlService::connectWifiWithPassword(const QString& ssid, const QString& password)
 {
 #ifdef Q_OS_WIN
-    m_bluetoothSupported = false;
-    m_bluetoothEnabled = false;
-    m_bluetoothDevices.clear();
-
-    bool rtSupported = false;
-    bool rtEnabled = false;
-    if (WinRtRadio::queryRadio(3 /*Bluetooth*/, rtSupported, rtEnabled) && rtSupported) {
-        m_bluetoothSupported = true;
-        m_bluetoothEnabled = rtEnabled;
-    }
-
-    HMODULE mod = LoadLibraryW(L"bthprops.cpl");
-    if (!mod)
-        mod = LoadLibraryW(L"BluetoothAPIs.dll");
-    if (!mod) {
-        emit bluetoothChanged();
+    if (ssid.isEmpty())
         return;
-    }
+    m_wifiConnectingSsid = ssid;
+    m_wifiStatusText = QStringLiteral("Connecting to %1...").arg(ssid);
+    emit wifiChanged();
 
-    using FnFindFirstRadio = HANDLE(WINAPI*)(const BthRadioParams*, HANDLE*);
-    using FnFindRadioClose = BOOL(WINAPI*)(HANDLE);
-    using FnIsConn = BOOL(WINAPI*)(HANDLE);
-    using FnFindFirstDev = HANDLE(WINAPI*)(const BthDeviceSearchParams*, BthDeviceInfo*);
-    using FnFindNextDev = BOOL(WINAPI*)(HANDLE, BthDeviceInfo*);
-    using FnFindDevClose = BOOL(WINAPI*)(HANDLE);
+    auto xmlEscape = [](QString s) {
+        s.replace(QLatin1Char('&'), QStringLiteral("&amp;"));
+        s.replace(QLatin1Char('<'), QStringLiteral("&lt;"));
+        s.replace(QLatin1Char('>'), QStringLiteral("&gt;"));
+        s.replace(QLatin1Char('"'), QStringLiteral("&quot;"));
+        s.replace(QLatin1Char('\''), QStringLiteral("&apos;"));
+        return s;
+    };
 
-    auto pFirstRadio = reinterpret_cast<FnFindFirstRadio>(GetProcAddress(mod, "BluetoothFindFirstRadio"));
-    auto pCloseRadio = reinterpret_cast<FnFindRadioClose>(GetProcAddress(mod, "BluetoothFindRadioClose"));
-    auto pIsConn = reinterpret_cast<FnIsConn>(GetProcAddress(mod, "BluetoothIsConnectable"));
-    auto pFirstDev = reinterpret_cast<FnFindFirstDev>(GetProcAddress(mod, "BluetoothFindFirstDevice"));
-    auto pNextDev = reinterpret_cast<FnFindNextDev>(GetProcAddress(mod, "BluetoothFindNextDevice"));
-    auto pCloseDev = reinterpret_cast<FnFindDevClose>(GetProcAddress(mod, "BluetoothFindDeviceClose"));
+    const QString escSsid = xmlEscape(ssid);
+    const QString escPass = xmlEscape(password);
+    const QString hexSsid = QString::fromLatin1(ssid.toUtf8().toHex().toUpper());
+    const QString xmlProfile = password.isEmpty()
+        ? QStringLiteral(
+            "<?xml version=\"1.0\"?>"
+            "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">"
+            "<name>%1</name>"
+            "<SSIDConfig><SSID><hex>%2</hex><name>%1</name></SSID></SSIDConfig>"
+            "<connectionType>ESS</connectionType><connectionMode>auto</connectionMode>"
+            "<MSM><security><authEncryption>"
+            "<authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX>"
+            "</authEncryption></security></MSM>"
+            "</WLANProfile>").arg(escSsid, hexSsid)
+        : QStringLiteral(
+            "<?xml version=\"1.0\"?>"
+            "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">"
+            "<name>%1</name>"
+            "<SSIDConfig><SSID><hex>%2</hex><name>%1</name></SSID></SSIDConfig>"
+            "<connectionType>ESS</connectionType><connectionMode>auto</connectionMode>"
+            "<MSM><security><authEncryption>"
+            "<authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX>"
+            "</authEncryption><sharedKey>"
+            "<keyType>passPhrase</keyType><protected>false</protected><keyMaterial>%3</keyMaterial>"
+            "</sharedKey></security></MSM>"
+            "</WLANProfile>").arg(escSsid, hexSsid, escPass);
 
-    if (!rtSupported && pFirstRadio && pCloseRadio) {
-        BthRadioParams rp{ sizeof(BthRadioParams) };
-        HANDLE hRadio = nullptr;
-        HANDLE hFind = pFirstRadio(&rp, &hRadio);
-        if (hFind) {
-            m_bluetoothSupported = true;
-            if (hRadio) {
-                m_bluetoothEnabled = pIsConn ? (pIsConn(hRadio) != FALSE) : true;
-                CloseHandle(hRadio);
-            }
-            pCloseRadio(hFind);
-        }
-    }
+    QPointer<SystemControlService> self(this);
+    std::thread([self, ssid, xmlProfile]() {
+        bool ok = false;
+        QString errMsg = QStringLiteral("Failed to connect to %1").arg(ssid);
+        HMODULE mod = LoadLibraryW(L"wlanapi.dll");
+        if (mod) {
+            using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
+            using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
+            using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
+            using FnFree = void(WINAPI*)(PVOID);
+            using FnSetProf = DWORD(WINAPI*)(HANDLE, const GUID*, DWORD, LPCWSTR, LPCWSTR, BOOL, PVOID, DWORD*);
+            using FnConnect = DWORD(WINAPI*)(HANDLE, const GUID*, const WlanConnParams*, PVOID);
 
-    if (m_bluetoothSupported && m_bluetoothEnabled && pFirstDev && pNextDev && pCloseDev) {
-        BthDeviceSearchParams sp{};
-        sp.dwSize = sizeof(sp);
-        sp.fReturnAuthenticated = TRUE;
-        sp.fReturnRemembered = TRUE;
-        sp.fReturnConnected = TRUE;
-        sp.fReturnUnknown = FALSE;
-        sp.fIssueInquiry = FALSE;
-        BthDeviceInfo di{};
-        di.dwSize = sizeof(di);
-        HANDLE hDev = pFirstDev(&sp, &di);
-        if (hDev) {
-            do {
-                const QString name = QString::fromWCharArray(di.szName).trimmed();
-                if (!name.isEmpty()) {
-                    QVariantMap m;
-                    m.insert(QStringLiteral("name"), name);
-                    m.insert(QStringLiteral("connected"), di.fConnected != FALSE);
-                    m_bluetoothDevices.append(m);
+            auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
+            auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
+            auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
+            auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
+            auto pSetProf = reinterpret_cast<FnSetProf>(GetProcAddress(mod, "WlanSetProfile"));
+            auto pConn = reinterpret_cast<FnConnect>(GetProcAddress(mod, "WlanConnect"));
+            if (pOpen && pClose && pEnum && pFree && pSetProf && pConn) {
+                DWORD negVer = 0;
+                HANDLE hClient = nullptr;
+                if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
+                    WlanIfaceInfoList* ifList = nullptr;
+                    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
+                        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
+                        const std::wstring wXml = xmlProfile.toStdWString();
+                        DWORD reasonCode = 0;
+                        const DWORD profRes = pSetProf(hClient, &guid, 0, wXml.c_str(), nullptr, TRUE, nullptr, &reasonCode);
+                        if (profRes == ERROR_SUCCESS) {
+                            const std::wstring wProfile = ssid.toStdWString();
+                            WlanConnParams cp{};
+                            cp.wlanConnectionMode = 0; // wlan_connection_mode_profile
+                            cp.strProfile = wProfile.c_str();
+                            cp.dot11BssType = 1; // dot11_BSS_type_infrastructure
+                            if (pConn(hClient, &guid, &cp, nullptr) == ERROR_SUCCESS)
+                                ok = true;
+                        } else {
+                            errMsg = QStringLiteral("Invalid Wi-Fi password or security mismatch");
+                        }
+                        pFree(ifList);
+                    }
+                    pClose(hClient, nullptr);
                 }
-                di.dwSize = sizeof(di);
-            } while (pNextDev(hDev, &di));
-            pCloseDev(hDev);
+            }
         }
-    }
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, ssid, ok, errMsg]() {
+            if (!self)
+                return;
+            if (!ok) {
+                self->m_wifiConnectingSsid.clear();
+                self->m_wifiStatusText = errMsg;
+                emit self->wifiChanged();
+                return;
+            }
+            self->refreshWifi();
+            QTimer::singleShot(1800, self, &SystemControlService::refreshWifi);
+            QTimer::singleShot(4000, self, &SystemControlService::refreshWifi);
+            QTimer::singleShot(5000, self, [self, ssid]() {
+                if (self && self->m_wifiConnectingSsid == ssid) {
+                    self->m_wifiConnectingSsid.clear();
+                    self->m_wifiStatusText.clear();
+                    emit self->wifiChanged();
+                }
+            });
+        }, Qt::QueuedConnection);
+    }).detach();
+#else
+    Q_UNUSED(ssid);
+    Q_UNUSED(password);
+#endif
+}
+
+void SystemControlService::forgetWifi(const QString& profileName)
+{
+#ifdef Q_OS_WIN
+    if (profileName.isEmpty())
+        return;
+    m_wifiStatusText = QStringLiteral("Forgetting %1...").arg(profileName);
+    emit wifiChanged();
+
+    QPointer<SystemControlService> self(this);
+    std::thread([self, profileName]() {
+        bool ok = false;
+        HMODULE mod = LoadLibraryW(L"wlanapi.dll");
+        if (mod) {
+            using FnOpen = DWORD(WINAPI*)(DWORD, PVOID, PDWORD, PHANDLE);
+            using FnClose = DWORD(WINAPI*)(HANDLE, PVOID);
+            using FnEnum = DWORD(WINAPI*)(HANDLE, PVOID, WlanIfaceInfoList**);
+            using FnFree = void(WINAPI*)(PVOID);
+            using FnDelProf = DWORD(WINAPI*)(HANDLE, const GUID*, LPCWSTR, PVOID);
+
+            auto pOpen = reinterpret_cast<FnOpen>(GetProcAddress(mod, "WlanOpenHandle"));
+            auto pClose = reinterpret_cast<FnClose>(GetProcAddress(mod, "WlanCloseHandle"));
+            auto pEnum = reinterpret_cast<FnEnum>(GetProcAddress(mod, "WlanEnumInterfaces"));
+            auto pFree = reinterpret_cast<FnFree>(GetProcAddress(mod, "WlanFreeMemory"));
+            auto pDelProf = reinterpret_cast<FnDelProf>(GetProcAddress(mod, "WlanDeleteProfile"));
+            if (pOpen && pClose && pEnum && pFree && pDelProf) {
+                DWORD negVer = 0;
+                HANDLE hClient = nullptr;
+                if (pOpen(2, nullptr, &negVer, &hClient) == ERROR_SUCCESS && hClient) {
+                    WlanIfaceInfoList* ifList = nullptr;
+                    if (pEnum(hClient, nullptr, &ifList) == ERROR_SUCCESS && ifList && ifList->dwNumberOfItems > 0) {
+                        const GUID guid = ifList->InterfaceInfo[0].InterfaceGuid;
+                        const std::wstring wProf = profileName.toStdWString();
+                        ok = (pDelProf(hClient, &guid, wProf.c_str(), nullptr) == ERROR_SUCCESS);
+                        pFree(ifList);
+                    }
+                    pClose(hClient, nullptr);
+                }
+            }
+        }
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, profileName, ok]() {
+            if (!self)
+                return;
+            self->m_wifiStatusText = ok
+                ? QStringLiteral("Forgot %1").arg(profileName)
+                : QStringLiteral("Could not forget %1").arg(profileName);
+            self->refreshWifi();
+            QTimer::singleShot(2500, self, [self]() {
+                if (self && self->m_wifiStatusText.startsWith(QStringLiteral("Forgot "))) {
+                    self->m_wifiStatusText.clear();
+                    emit self->wifiChanged();
+                }
+            });
+        }, Qt::QueuedConnection);
+    }).detach();
+#else
+    Q_UNUSED(profileName);
+#endif
+}
+
+void SystemControlService::forgetBluetooth(const QString& addressStr)
+{
+#ifdef Q_OS_WIN
+    bool okParse = false;
+    const ULONGLONG addr = addressStr.toULongLong(&okParse);
+    if (!okParse || addr == 0)
+        return;
+
+    QPointer<SystemControlService> self(this);
+    std::thread([self, addr]() {
+        HMODULE mod = LoadLibraryW(L"bthprops.cpl");
+        if (!mod)
+            mod = LoadLibraryW(L"BluetoothAPIs.dll");
+        if (mod) {
+            using FnRemoveDev = DWORD(WINAPI*)(const ULONGLONG*);
+            auto pRemove = reinterpret_cast<FnRemoveDev>(GetProcAddress(mod, "BluetoothRemoveDevice"));
+            if (pRemove)
+                pRemove(&addr);
+        }
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self]() {
+            if (!self)
+                return;
+            self->refreshBluetooth();
+        }, Qt::QueuedConnection);
+    }).detach();
+#else
+    Q_UNUSED(addressStr);
+#endif
+}
+
+void SystemControlService::openAddDeviceDialog()
+{
+#ifdef Q_OS_WIN
+    const INT_PTR res = reinterpret_cast<INT_PTR>(
+        ShellExecuteW(nullptr, L"open", L"ms-settings-connectabledevices:devicediscovery", nullptr, nullptr, SW_SHOWNORMAL));
+    if (res <= 32)
+        openSettings(QStringLiteral("ms-settings:bluetooth"));
+#endif
+}
+
+void SystemControlService::refreshBluetooth()
+{
+    refreshBluetoothInternal(false);
+}
+
+void SystemControlService::scanBluetooth()
+{
+    refreshBluetoothInternal(true);
+}
+
+void SystemControlService::refreshBluetoothInternal(bool activeInquiry)
+{
+#ifdef Q_OS_WIN
+    if (m_btBusy.exchange(true))
+        return;
+
+    m_btScanning = activeInquiry;
     emit bluetoothChanged();
+
+    QPointer<SystemControlService> self(this);
+    std::thread([self, activeInquiry]() {
+        bool supported = false;
+        bool enabled = false;
+        QVariantList devicesOut;
+
+        bool rtSupported = false;
+        bool rtEnabled = false;
+        if (WinRtRadio::queryRadio(3 /*Bluetooth*/, rtSupported, rtEnabled) && rtSupported) {
+            supported = true;
+            enabled = rtEnabled;
+        }
+
+        HMODULE mod = LoadLibraryW(L"bthprops.cpl");
+        if (!mod)
+            mod = LoadLibraryW(L"BluetoothAPIs.dll");
+        if (mod) {
+            using FnFindFirstRadio = HANDLE(WINAPI*)(const BthRadioParams*, HANDLE*);
+            using FnFindRadioClose = BOOL(WINAPI*)(HANDLE);
+            using FnIsConn = BOOL(WINAPI*)(HANDLE);
+            using FnFindFirstDev = HANDLE(WINAPI*)(const BthDeviceSearchParams*, BthDeviceInfo*);
+            using FnFindNextDev = BOOL(WINAPI*)(HANDLE, BthDeviceInfo*);
+            using FnFindDevClose = BOOL(WINAPI*)(HANDLE);
+
+            auto pFirstRadio = reinterpret_cast<FnFindFirstRadio>(GetProcAddress(mod, "BluetoothFindFirstRadio"));
+            auto pCloseRadio = reinterpret_cast<FnFindRadioClose>(GetProcAddress(mod, "BluetoothFindRadioClose"));
+            auto pIsConn = reinterpret_cast<FnIsConn>(GetProcAddress(mod, "BluetoothIsConnectable"));
+            auto pFirstDev = reinterpret_cast<FnFindFirstDev>(GetProcAddress(mod, "BluetoothFindFirstDevice"));
+            auto pNextDev = reinterpret_cast<FnFindNextDev>(GetProcAddress(mod, "BluetoothFindNextDevice"));
+            auto pCloseDev = reinterpret_cast<FnFindDevClose>(GetProcAddress(mod, "BluetoothFindDeviceClose"));
+
+            if (!rtSupported && pFirstRadio && pCloseRadio) {
+                BthRadioParams rp{ sizeof(BthRadioParams) };
+                HANDLE hRadio = nullptr;
+                HANDLE hFind = pFirstRadio(&rp, &hRadio);
+                if (hFind) {
+                    supported = true;
+                    if (hRadio) {
+                        enabled = pIsConn ? (pIsConn(hRadio) != FALSE) : true;
+                        CloseHandle(hRadio);
+                    }
+                    pCloseRadio(hFind);
+                }
+            }
+
+            if (supported && enabled && pFirstDev && pNextDev && pCloseDev) {
+                BthDeviceSearchParams sp{};
+                sp.dwSize = sizeof(sp);
+                sp.fReturnAuthenticated = TRUE;
+                sp.fReturnRemembered = TRUE;
+                sp.fReturnConnected = TRUE;
+                sp.fReturnUnknown = activeInquiry ? TRUE : FALSE;
+                sp.fIssueInquiry = activeInquiry ? TRUE : FALSE;
+                sp.cTimeoutMultiplier = activeInquiry ? 2 : 0;
+                BthDeviceInfo di{};
+                di.dwSize = sizeof(di);
+                HANDLE hDev = pFirstDev(&sp, &di);
+                if (hDev) {
+                    QVariantList connectedList;
+                    QVariantList pairedList;
+                    QVariantList nearbyList;
+                    QSet<QString> seenNames;
+                    do {
+                        const QString name = QString::fromWCharArray(di.szName).trimmed();
+                        if (!name.isEmpty() && !seenNames.contains(name)) {
+                            seenNames.insert(name);
+                            const bool isConnected = (di.fConnected != FALSE);
+                            const bool isPaired = (di.fAuthenticated != FALSE) || (di.fRemembered != FALSE);
+                            QVariantMap m;
+                            m.insert(QStringLiteral("name"), name);
+                            m.insert(QStringLiteral("connected"), isConnected);
+                            m.insert(QStringLiteral("paired"), isPaired);
+                            m.insert(QStringLiteral("address"), QString::number(di.Address));
+                            if (isConnected)
+                                connectedList.append(m);
+                            else if (isPaired)
+                                pairedList.append(m);
+                            else
+                                nearbyList.append(m);
+                        }
+                        di.dwSize = sizeof(di);
+                    } while (pNextDev(hDev, &di));
+                    pCloseDev(hDev);
+                    devicesOut.append(connectedList);
+                    devicesOut.append(pairedList);
+                    devicesOut.append(nearbyList);
+                }
+            }
+        }
+
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, supported, enabled, devicesOut]() {
+            if (!self)
+                return;
+            self->m_bluetoothSupported = supported;
+            self->m_bluetoothEnabled = enabled;
+            self->m_bluetoothDevices = devicesOut;
+            self->m_btScanning = false;
+            self->m_btBusy.store(false);
+            emit self->bluetoothChanged();
+        }, Qt::QueuedConnection);
+    }).detach();
+#else
+    Q_UNUSED(activeInquiry);
 #endif
 }
 
@@ -1463,38 +1806,52 @@ void SystemControlService::toggleBluetooth()
 {
 #ifdef Q_OS_WIN
     const int nextState = m_bluetoothEnabled ? 2 /*Off*/ : 1 /*On*/;
-    if (!WinRtRadio::setRadioState(3 /*Bluetooth*/, nextState)) {
-        HMODULE mod = LoadLibraryW(L"bthprops.cpl");
-        if (!mod)
-            mod = LoadLibraryW(L"BluetoothAPIs.dll");
-        if (mod) {
-            using FnFindFirstRadio = HANDLE(WINAPI*)(const BthRadioParams*, HANDLE*);
-            using FnFindRadioClose = BOOL(WINAPI*)(HANDLE);
-            using FnEnIn = BOOL(WINAPI*)(HANDLE, BOOL);
-            using FnEnDisc = BOOL(WINAPI*)(HANDLE, BOOL);
-            auto pFirstRadio = reinterpret_cast<FnFindFirstRadio>(GetProcAddress(mod, "BluetoothFindFirstRadio"));
-            auto pCloseRadio = reinterpret_cast<FnFindRadioClose>(GetProcAddress(mod, "BluetoothFindRadioClose"));
-            auto pEnIn = reinterpret_cast<FnEnIn>(GetProcAddress(mod, "BluetoothEnableIncomingConnections"));
-            auto pEnDisc = reinterpret_cast<FnEnDisc>(GetProcAddress(mod, "BluetoothEnableDiscovery"));
-            if (pFirstRadio && pCloseRadio) {
-                BthRadioParams rp{ sizeof(BthRadioParams) };
-                HANDLE hRadio = nullptr;
-                HANDLE hFind = pFirstRadio(&rp, &hRadio);
-                if (hFind) {
-                    if (hRadio) {
-                        const BOOL nextOn = (nextState == 1) ? TRUE : FALSE;
-                        if (pEnDisc) pEnDisc(hRadio, nextOn);
-                        if (pEnIn) pEnIn(hRadio, nextOn);
-                        CloseHandle(hRadio);
+    m_bluetoothEnabled = (nextState == 1);
+    if (!m_bluetoothEnabled)
+        m_bluetoothDevices.clear();
+    emit bluetoothChanged();
+
+    QPointer<SystemControlService> self(this);
+    std::thread([self, nextState]() {
+        if (!WinRtRadio::setRadioState(3 /*Bluetooth*/, nextState)) {
+            HMODULE mod = LoadLibraryW(L"bthprops.cpl");
+            if (!mod)
+                mod = LoadLibraryW(L"BluetoothAPIs.dll");
+            if (mod) {
+                using FnFindFirstRadio = HANDLE(WINAPI*)(const BthRadioParams*, HANDLE*);
+                using FnFindRadioClose = BOOL(WINAPI*)(HANDLE);
+                using FnEnIn = BOOL(WINAPI*)(HANDLE, BOOL);
+                using FnEnDisc = BOOL(WINAPI*)(HANDLE, BOOL);
+                auto pFirstRadio = reinterpret_cast<FnFindFirstRadio>(GetProcAddress(mod, "BluetoothFindFirstRadio"));
+                auto pCloseRadio = reinterpret_cast<FnFindRadioClose>(GetProcAddress(mod, "BluetoothFindRadioClose"));
+                auto pEnIn = reinterpret_cast<FnEnIn>(GetProcAddress(mod, "BluetoothEnableIncomingConnections"));
+                auto pEnDisc = reinterpret_cast<FnEnDisc>(GetProcAddress(mod, "BluetoothEnableDiscovery"));
+                if (pFirstRadio && pCloseRadio) {
+                    BthRadioParams rp{ sizeof(BthRadioParams) };
+                    HANDLE hRadio = nullptr;
+                    HANDLE hFind = pFirstRadio(&rp, &hRadio);
+                    if (hFind) {
+                        if (hRadio) {
+                            const BOOL nextOn = (nextState == 1) ? TRUE : FALSE;
+                            if (pEnDisc) pEnDisc(hRadio, nextOn);
+                            if (pEnIn) pEnIn(hRadio, nextOn);
+                            CloseHandle(hRadio);
+                        }
+                        pCloseRadio(hFind);
                     }
-                    pCloseRadio(hFind);
                 }
             }
         }
-    }
-    refreshBluetooth();
-    if (nextState == 1)
-        QTimer::singleShot(450, this, &SystemControlService::refreshBluetooth);
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(self, [self, nextState]() {
+            if (!self)
+                return;
+            self->refreshBluetooth();
+            if (nextState == 1)
+                QTimer::singleShot(450, self, &SystemControlService::refreshBluetooth);
+        }, Qt::QueuedConnection);
+    }).detach();
 #endif
 }
 

@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QVariantList>
+#include <atomic>
 #include <functional>
 
 class SystemControlService : public QObject, public QAbstractNativeEventFilter {
@@ -21,9 +22,13 @@ class SystemControlService : public QObject, public QAbstractNativeEventFilter {
     Q_PROPERTY(bool wifiSupported READ wifiSupported NOTIFY wifiChanged)
     Q_PROPERTY(bool wifiEnabled READ wifiEnabled NOTIFY wifiChanged)
     Q_PROPERTY(QVariantList wifiNetworks READ wifiNetworks NOTIFY wifiChanged)
+    Q_PROPERTY(QString wifiConnectingSsid READ wifiConnectingSsid NOTIFY wifiChanged)
+    Q_PROPERTY(QString wifiStatusText READ wifiStatusText NOTIFY wifiChanged)
+    Q_PROPERTY(bool wifiScanning READ wifiScanning NOTIFY wifiChanged)
     Q_PROPERTY(bool bluetoothSupported READ bluetoothSupported NOTIFY bluetoothChanged)
     Q_PROPERTY(bool bluetoothEnabled READ bluetoothEnabled NOTIFY bluetoothChanged)
     Q_PROPERTY(QVariantList bluetoothDevices READ bluetoothDevices NOTIFY bluetoothChanged)
+    Q_PROPERTY(bool btScanning READ btScanning NOTIFY bluetoothChanged)
     Q_PROPERTY(qreal downloadBps READ downloadBps NOTIFY netSpeedChanged)
     Q_PROPERTY(qreal uploadBps READ uploadBps NOTIFY netSpeedChanged)
     Q_PROPERTY(bool keepAwake READ keepAwake NOTIFY keepAwakeChanged)
@@ -44,9 +49,13 @@ public:
     bool wifiSupported() const { return m_wifiSupported; }
     bool wifiEnabled() const { return m_wifiEnabled; }
     QVariantList wifiNetworks() const { return m_wifiNetworks; }
+    QString wifiConnectingSsid() const { return m_wifiConnectingSsid; }
+    QString wifiStatusText() const { return m_wifiStatusText; }
+    bool wifiScanning() const { return m_wifiScanning; }
     bool bluetoothSupported() const { return m_bluetoothSupported; }
     bool bluetoothEnabled() const { return m_bluetoothEnabled; }
     QVariantList bluetoothDevices() const { return m_bluetoothDevices; }
+    bool btScanning() const { return m_btScanning; }
     qreal downloadBps() const { return m_downloadBps; }
     qreal uploadBps() const { return m_uploadBps; }
     bool keepAwake() const { return m_keepAwake; }
@@ -57,7 +66,12 @@ public:
     Q_INVOKABLE void refreshWifi();
     Q_INVOKABLE void toggleWifi();
     Q_INVOKABLE void connectWifi(const QString& ssid);
+    Q_INVOKABLE void connectWifiWithPassword(const QString& ssid, const QString& password);
+    Q_INVOKABLE void forgetWifi(const QString& profileName);
     Q_INVOKABLE void refreshBluetooth();
+    Q_INVOKABLE void scanBluetooth();
+    Q_INVOKABLE void forgetBluetooth(const QString& addressStr);
+    Q_INVOKABLE void openAddDeviceDialog();
     Q_INVOKABLE void toggleBluetooth();
     Q_INVOKABLE void setNetSpeedActive(bool active);
     Q_INVOKABLE void toggleKeepAwake();
@@ -109,6 +123,7 @@ private:
     void readDarkMode();
     void readNetwork();
     void readLaunchAtStartup();
+    void refreshBluetoothInternal(bool activeInquiry);
     void sampleNetSpeed();
     void registerHotkeys();
     void triggerQuickPanelToggle();
@@ -124,9 +139,13 @@ private:
     bool m_wifiSupported = false;
     bool m_wifiEnabled = false;
     QVariantList m_wifiNetworks;
+    QString m_wifiConnectingSsid;
+    QString m_wifiStatusText;
+    bool m_wifiScanning = false;
     bool m_bluetoothSupported = false;
     bool m_bluetoothEnabled = false;
     QVariantList m_bluetoothDevices;
+    bool m_btScanning = false;
     qreal m_downloadBps = 0.0;
     qreal m_uploadBps = 0.0;
     bool m_netSpeedActive = false;
@@ -152,5 +171,7 @@ private:
     bool m_suppressStockOsd = false;
     bool m_launchAtStartup = false;
     bool m_startupChecked = false;
+    std::atomic<bool> m_wifiBusy{false};
+    std::atomic<bool> m_btBusy{false};
     std::function<void()> m_beforeQuitCallback;
 };

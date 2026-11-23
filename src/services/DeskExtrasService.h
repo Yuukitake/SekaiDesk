@@ -20,6 +20,8 @@ class LyricsService : public QObject {
     Q_PROPERTY(int activeIndex READ activeIndex NOTIFY activeIndexChanged)
     Q_PROPERTY(QString trackKey READ trackKey NOTIFY lyricsChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY lyricsChanged)
+    Q_PROPERTY(QString translateLang READ translateLang WRITE setTranslateLang NOTIFY translateLangChanged)
+    Q_PROPERTY(QStringList translatedLines READ translatedLines NOTIFY lyricsChanged)
 
 public:
     explicit LyricsService(MediaService* media, QObject* parent = nullptr);
@@ -32,23 +34,30 @@ public:
     int activeIndex() const { return m_activeIndex; }
     QString trackKey() const { return m_trackKey; }
     QString statusText() const { return m_statusText; }
+    QString translateLang() const { return m_translateLang; }
+    QStringList translatedLines() const { return m_translatedLines; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void searchManual(const QString& query);
+    Q_INVOKABLE void setTranslateLang(const QString& lang);
     void setPaused(bool paused);
 
 signals:
     void lyricsChanged();
     void activeIndexChanged();
+    void translateLangChanged();
 
 private:
     void onMediaUpdated();
     void onTimelineUpdated();
     void updateActiveLine();
     void fetchLyrics(const QString& title, const QString& artist, double durationSec, bool force = false);
-    void fetchSearchFallback(const QString& query, double targetDuration, uint64_t gen);
-    bool applyTrackJson(const QByteArray& body, bool allowArray);
+    void fetchSearchFallback(const QString& query, double targetDuration, uint64_t gen, const QString& secondaryQuery = QString());
+    bool applyTrackJson(const QByteArray& body, bool allowArray, double targetDuration = 0.0);
+    void applyPlainLyrics(const QString& plainLrc, double targetDuration);
     void parseLrc(const QString& lrcText);
+    void startTranslationIfNeeded(uint64_t gen);
+    void translateChunk(int chunkIdx, const QList<QPair<int, int>>& ranges, const QString& targetLang, uint64_t gen);
 
     MediaService* m_media = nullptr;
     QTimer m_tickTimer;
@@ -61,8 +70,12 @@ private:
     QString m_trackKey;
     QString m_pendingKey;
     QString m_statusText;
+    QString m_translateLang = QStringLiteral("en");
+    QStringList m_translatedLines;
     double m_anchorPosSec = 0.0;
     qint64 m_anchorMs = 0;
+    double m_lastReportedPosSec = -1.0;
+    bool m_wasPlaying = false;
     uint64_t m_requestGen = 0;
 };
 

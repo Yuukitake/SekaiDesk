@@ -116,6 +116,9 @@ int main(int argc, char* argv[])
             QCoreApplication::setApplicationName(QStringLiteral("SekaiDesk"));
             return SystemControlService::unregisterStartupForCurrentExe() ? 0 : 1;
         }
+        if (std::strncmp(argv[i], "--fake-battery=", 15) == 0) {
+            qputenv("SEKAIDESK_FAKE_BATTERY", argv[i] + 15);
+        }
     }
 
 #ifdef Q_OS_WIN

@@ -12,6 +12,9 @@ Item {
     property color borderColor: "transparent"
     property real borderWidth: 0
     property Gradient gradient: null
+    property bool useGradient: false
+    property color gradFrom: "transparent"
+    property color gradTo: "transparent"
 
     readonly property real lean: skew * height
 
@@ -21,10 +24,17 @@ Item {
         height: root.height
         radius: Math.min(root.radius, height / 2)
         color: root.color
-        gradient: root.gradient
+        gradient: root.useGradient ? slantGrad : root.gradient
         border.width: root.borderWidth
         border.color: root.borderColor
         antialiasing: true
+
+        Gradient {
+            id: slantGrad
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: root.gradFrom }
+            GradientStop { position: 1.0; color: root.gradTo }
+        }
 
         transform: Matrix4x4 {
             matrix: Qt.matrix4x4(1, -root.skew, 0, root.skew * root.height / 2,

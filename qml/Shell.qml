@@ -625,7 +625,7 @@ PanelWindow {
                         readonly property bool isLit: appBox.hovered || !!slot.modelData.active
                         readonly property bool unplugged: !slot.modelData.running && !appBox.hovered
                         readonly property real curIconSize: dockWindow.circleIcons
-                            ? Math.max(20, slot.slotSize - 6)
+                            ? Math.round(slot.slotSize * 0.62)
                             : (dockWindow.baseIconSize + (dockWindow.maxIconSize - dockWindow.baseIconSize) * slot.wFactor)
 
                         onHoveredChanged: {
@@ -645,9 +645,9 @@ PanelWindow {
                             }
                         }
 
-                        // Multi-window peeking sheets behind key (SekaiPop signature)
+                        // Multi-window peeking sheets behind key (SekaiPop signature, square/keycap only)
                         Rectangle {
-                            visible: !!slot.modelData.running && (slot.modelData.count || 0) > 2
+                            visible: !!slot.modelData.running && (slot.modelData.count || 0) > 2 && !dockWindow.circleIcons
                             x: -3
                             y: -2
                             width: keyCap.width
@@ -659,7 +659,7 @@ PanelWindow {
                             border.color: dockWindow.isCapsule ? themeHub.barRimColor : "#1A1B2E"
                         }
                         Rectangle {
-                            visible: !!slot.modelData.running && (slot.modelData.count || 0) > 1
+                            visible: !!slot.modelData.running && (slot.modelData.count || 0) > 1 && !dockWindow.circleIcons
                             x: 2
                             y: -3
                             width: keyCap.width
@@ -671,15 +671,15 @@ PanelWindow {
                             border.color: dockWindow.isCapsule ? themeHub.barRimColor : "#1A1B2E"
                         }
 
-                        // Keycap bottom lip (Float square keycap only)
+                        // Keycap bottom lip (Float square keycap & SekaiPop 3D coin badge)
                         Rectangle {
-                            visible: !dockWindow.isCapsule && !dockWindow.circleIcons
+                            visible: !dockWindow.isCapsule || dockWindow.circleIcons
                             anchors.fill: keyCap
-                            anchors.topMargin: 2.5
-                            anchors.bottomMargin: -2.5
+                            anchors.topMargin: dockWindow.circleIcons ? 3 : 2.5
+                            anchors.bottomMargin: dockWindow.circleIcons ? -3 : -2.5
                             radius: keyCap.radius
                             color: "#1A1B2E"
-                            opacity: appBox.pressed ? 0.0 : 0.9
+                            opacity: appBox.pressed ? 0.0 : (dockWindow.circleIcons ? 0.95 : 0.9)
                         }
 
                         Rectangle {
@@ -698,10 +698,14 @@ PanelWindow {
                             color: dockWindow.isCapsule
                                 ? (appBox.hovered ? themeHub.barChipHover : themeHub.barBodyColor)
                                 : (appBox.hovered ? "#E0F2FE" : "#FFFFFF")
-                            border.width: dockWindow.isCapsule ? (appBox.isLit ? 2.5 : 2) : 2
-                            border.color: dockWindow.isCapsule
-                                ? (appBox.isLit ? themeHub.accentA : themeHub.barRimColor)
-                                : (appBox.isLit ? themeHub.accentA : "#1A1B2E")
+                            border.width: dockWindow.circleIcons
+                                ? (appBox.isLit ? 3 : 2.5)
+                                : (dockWindow.isCapsule ? (appBox.isLit ? 2.5 : 2) : 2)
+                            border.color: dockWindow.circleIcons
+                                ? (dockWindow.isCapsule && appBox.isLit ? themeHub.accentA : "#1A1B2E")
+                                : (dockWindow.isCapsule
+                                    ? (appBox.isLit ? themeHub.accentA : themeHub.barRimColor)
+                                    : (appBox.isLit ? themeHub.accentA : "#1A1B2E"))
 
                             Item {
                                 id: appIconBox
@@ -709,46 +713,13 @@ PanelWindow {
                                 width: appBox.curIconSize
                                 height: appBox.curIconSize
 
-                                Item {
-                                    id: appIconLayer
+                                Image {
                                     anchors.fill: parent
-                                    layer.enabled: dockWindow.circleIcons && visible && width > 4 && height > 4
-                                    layer.smooth: true
-                                    layer.mipmap: true
-                                    layer.textureSize: Qt.size(Math.max(32, Math.round(width * 2)), Math.max(32, Math.round(height * 2)))
-                                    layer.effect: MultiEffect {
-                                        maskEnabled: dockWindow.circleIcons
-                                        maskSource: appIconMask
-                                        saturation: appBox.unplugged ? -0.45 : 0.0
-                                        brightness: appBox.unplugged ? -0.06 : 0.0
-                                    }
-
-                                    Image {
-                                        anchors.centerIn: parent
-                                        width: dockWindow.circleIcons ? parent.width * 1.06 : parent.width
-                                        height: dockWindow.circleIcons ? parent.height * 1.06 : parent.height
-                                        source: "image://winicon/" + encodeURIComponent(slot.modelData.target || "")
-                                        sourceSize: Qt.size(dockWindow.maxIconSize * 2, dockWindow.maxIconSize * 2)
-                                        smooth: true
-                                        mipmap: true
-                                        opacity: (!dockWindow.circleIcons && appBox.unplugged) ? 0.65 : 1.0
-                                    }
-                                }
-
-                                Item {
-                                    id: appIconMask
-                                    anchors.fill: parent
-                                    visible: false
-                                    layer.enabled: dockWindow.circleIcons && width > 4 && height > 4
-                                    layer.smooth: true
-                                    layer.textureSize: appIconLayer.layer.textureSize
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: Math.round(Math.min(width, height) * 0.5)
-                                        color: "black"
-                                        antialiasing: true
-                                    }
+                                    source: "image://winicon/" + encodeURIComponent(slot.modelData.target || "")
+                                    sourceSize: Qt.size(dockWindow.maxIconSize * 2, dockWindow.maxIconSize * 2)
+                                    smooth: true
+                                    mipmap: true
+                                    opacity: appBox.unplugged ? (dockWindow.circleIcons ? 0.72 : 0.65) : 1.0
                                 }
                             }
                         }
@@ -800,7 +771,7 @@ PanelWindow {
                                 if (!(mouse.buttons & Qt.LeftButton)) {
                                     if (didDrag || dockWindow.dragFromSlot >= 0) {
                                         didDrag = false
-                                        dockWindow.finishDrag()
+                                        Qt.callLater(dockWindow.finishDrag)
                                     }
                                     return
                                 }
@@ -835,12 +806,12 @@ PanelWindow {
                             }
                             onReleased: {
                                 if (didDrag)
-                                    dockWindow.finishDrag()
+                                    Qt.callLater(dockWindow.finishDrag)
                             }
                             onCanceled: {
                                 if (didDrag) {
                                     didDrag = false
-                                    dockWindow.finishDrag()
+                                    Qt.callLater(dockWindow.finishDrag)
                                 }
                             }
                             onClicked: (mouse) => {
@@ -868,14 +839,16 @@ PanelWindow {
                                     return
                                 }
                                 dockWindow.ctxOpen = false
-                                if (slot.modelData.running) {
-                                    WindowTracker.activateOrToggle(slot.modelData.target || "")
-                                } else {
-                                    AppLauncher.launch(
-                                        slot.modelData.target || "",
-                                        slot.modelData.args || ""
-                                    )
-                                }
+                                const tgt = slot.modelData.target || ""
+                                const ar = slot.modelData.args || ""
+                                const isRun = !!slot.modelData.running
+                                Qt.callLater(function() {
+                                    if (isRun) {
+                                        WindowTracker.activateOrToggle(tgt)
+                                    } else {
+                                        AppLauncher.launch(tgt, ar)
+                                    }
+                                })
                             }
                         }
                     }
@@ -1839,7 +1812,10 @@ PanelWindow {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: WindowTracker.minimizeHwnd(winTile.modelData.hwnd)
+                                        onClicked: {
+                                            const h = winTile.modelData.hwnd
+                                            Qt.callLater(function() { WindowTracker.minimizeHwnd(h) })
+                                        }
                                     }
                                 }
 
@@ -1862,7 +1838,10 @@ PanelWindow {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: WindowTracker.closeHwnd(winTile.modelData.hwnd)
+                                        onClicked: {
+                                            const h = winTile.modelData.hwnd
+                                            Qt.callLater(function() { WindowTracker.closeHwnd(h) })
+                                        }
                                     }
                                 }
                             }
@@ -1890,13 +1869,17 @@ PanelWindow {
                             acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                             cursorShape: Qt.PointingHandCursor
                             onClicked: (mouse) => {
-                                if (mouse.button === Qt.MiddleButton) {
-                                    WindowTracker.closeHwnd(winTile.modelData.hwnd)
-                                } else {
-                                    WindowTracker.activateHwnd(winTile.modelData.hwnd)
-                                    dockWindow.activePreviewTarget = ""
-                                    dockWindow.activePreviewWindows = []
-                                }
+                                const h = winTile.modelData.hwnd
+                                const isMid = (mouse.button === Qt.MiddleButton)
+                                Qt.callLater(function() {
+                                    if (isMid) {
+                                        WindowTracker.closeHwnd(h)
+                                    } else {
+                                        WindowTracker.activateHwnd(h)
+                                        dockWindow.activePreviewTarget = ""
+                                        dockWindow.activePreviewWindows = []
+                                    }
+                                })
                             }
                         }
                     }
@@ -2276,33 +2259,41 @@ PanelWindow {
             return Math.max(8, Math.min(scrH - popH - 8, anchorY))
         }
 
-        blurBehind: !topBarWindow.fullscreenActive && topBarWindow.effectiveTopHide < 0.95
-        blurRadius: themeHub.barStyle === "capsule" ? 14 : (themeHub.barStyle === "float" ? 10 : 0)
-        blurInsetX: barVertical
-            ? (barLeft ? (themeHub.barStyle === "float" ? 2 : 0) : (themeHub.barStyle === "float" ? 4 : 0))
-            : (themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 14 : 0))
-        blurInsetY: barVertical
-            ? (themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 14 : 0))
-            : (barBottom ? (themeHub.barStyle === "float" ? 2 : 0) : (themeHub.barStyle === "float" ? 4 : 0))
-        blurInsetRight: barVertical
-            ? (barRight ? (themeHub.barStyle === "float" ? 2 : 0) : (themeHub.barStyle === "float" ? 4 : 0))
-            : (themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 14 : 0))
-        blurInsetBottom: barVertical
-            ? (themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 14 : 0))
-            : (barBottom ? (themeHub.barStyle === "float" ? 4 : 0) : (themeHub.barStyle === "float" ? 2 : 0))
-        blurTint: themeHub.barStyle === "transparent"
+        blurBehind: themeHub.barStyle !== "transparent" && !topBarWindow.fullscreenActive && topBarWindow.effectiveTopHide < 0.95
+        blurRadius: 0
+        blurInsetX: 0
+        blurInsetY: 0
+        blurInsetRight: 0
+        blurInsetBottom: 0
+        blurTint: themeHub.barStyle === "blur"
                   ? Qt.rgba(14/255, 18/255, 30/255, 0.35)
                   : Qt.rgba(16/255, 20/255, 36/255, 0.84)
 
-        mask: topBarWindow.fullscreenActive
-              ? []
-              : (topBarWindow.effectiveTopHide > 0.95
-                 ? (themeHub.barAutoHide
-                    ? (barVertical
-                       ? [{ x: barLeft ? 0 : Math.max(0, topBarWindow.width - 3), y: 0, width: 3, height: Math.max(1, topBarWindow.height) }]
-                       : [{ x: 0, y: barBottom ? Math.max(0, topBarWindow.height - 3) : 0, width: Math.max(1, topBarWindow.width), height: 3 }])
-                    : [])
-                 : null)
+        mask: {
+            if (topBarWindow.fullscreenActive)
+                return []
+            if (topBarWindow.effectiveTopHide > 0.95) {
+                if (!themeHub.barAutoHide)
+                    return []
+                return barVertical
+                    ? [{ x: barLeft ? 0 : Math.max(0, topBarWindow.width - 3), y: 0, width: 3, height: Math.max(1, topBarWindow.height) }]
+                    : [{ x: 0, y: barBottom ? Math.max(0, topBarWindow.height - 3) : 0, width: Math.max(1, topBarWindow.width), height: 3 }]
+            }
+            if (themeHub.barStyle === "transparent" && !topBarWindow.barVertical) {
+                const rects = []
+                const bx = barFrame.x + horizontalBarContent.x
+                const by = barFrame.y + horizontalBarContent.y
+                if (leftIslandBg.visible && leftIslandBg.width > 0)
+                    rects.push({ x: Math.round(bx + leftIslandBg.x), y: Math.round(by + leftIslandBg.y), width: Math.round(leftIslandBg.width), height: Math.round(leftIslandBg.height + 3) })
+                if (centerIslandBg.visible && centerIslandBg.width > 0)
+                    rects.push({ x: Math.round(bx + centerIslandBg.x), y: Math.round(by + centerIslandBg.y), width: Math.round(centerIslandBg.width), height: Math.round(centerIslandBg.height + 3) })
+                if (rightIslandBg.visible && rightIslandBg.width > 0)
+                    rects.push({ x: Math.round(bx + rightIslandBg.x), y: Math.round(by + rightIslandBg.y), width: Math.round(rightIslandBg.width), height: Math.round(rightIslandBg.height + 3) })
+                if (rects.length > 0)
+                    return rects
+            }
+            return null
+        }
 
         Timer {
             interval: 1000
@@ -2329,44 +2320,18 @@ PanelWindow {
                 id: topBarHover
             }
 
-            // SekaiPop-inspired hard capsule drop shadow (when Capsule mode is active)
-            Rectangle {
-                visible: themeHub.barStyle === "capsule"
-                x: barFrame.x
-                y: barFrame.y + 3
-                width: barFrame.width
-                height: barFrame.height
-                radius: barFrame.radius
-                color: themeHub.barShadeColor
-                antialiasing: true
-            }
-
             // Styled Bar frame (supports Top / Bottom horizontal & Left / Right slim vertical)
             Rectangle {
                 id: barFrame
-                x: topBarWindow.barVertical
-                    ? ((topBarWindow.barRight ? ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 4 : 0)
-                                              : ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 2 : 0)) + topBarWindow.topHideOffsetX)
-                    : ((themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 14 : 0)) + topBarWindow.topHideOffsetX)
-                y: topBarWindow.barVertical
-                    ? (themeHub.barStyle === "float" ? 8 : (themeHub.barStyle === "capsule" ? 12 : 0))
-                    : ((topBarWindow.barBottom ? ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 1 : 0)
-                                               : ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 2 : 0)) + topBarWindow.topHideOffsetY)
-                width: topBarWindow.barVertical
-                    ? ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 44 : topBarWindow.stripThickness)
-                    : (topBarRoot.width - (themeHub.barStyle === "float" ? 16 : (themeHub.barStyle === "capsule" ? 28 : 0)))
-                height: topBarWindow.barVertical
-                    ? (topBarRoot.height - (themeHub.barStyle === "float" ? 16 : (themeHub.barStyle === "capsule" ? 24 : 0)) - (themeHub.barStyle === "capsule" ? 3 : 0))
-                    : ((themeHub.barStyle === "float" || themeHub.barStyle === "capsule") ? 31 : 30)
-                radius: themeHub.barStyle === "capsule"
-                    ? (Math.min(width, height) / 2)
-                    : (themeHub.barStyle === "float" ? 12 : 0)
-                Behavior on radius {
-                    NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
-                }
-                color: themeHub.barStyle === "transparent" ? "transparent" : themeHub.barBodyColor
-                border.width: themeHub.barStyle === "capsule" ? 2.5 : (themeHub.barStyle === "float" ? 2 : 0)
-                border.color: themeHub.barRimColor
+                x: topBarWindow.topHideOffsetX
+                y: topBarWindow.topHideOffsetY
+                width: topBarRoot.width
+                height: topBarWindow.barVertical ? topBarRoot.height : topBarWindow.stripThickness
+                radius: 0
+                color: (themeHub.barStyle === "transparent" || themeHub.barStyle === "blur")
+                    ? "transparent"
+                    : themeHub.barBodyColor
+                border.width: 0
                 antialiasing: true
 
                 Rectangle {
@@ -2385,8 +2350,81 @@ PanelWindow {
                     id: horizontalBarContent
                     visible: !topBarWindow.barVertical
                     anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 6
+                    anchors.leftMargin: themeHub.barStyle === "transparent" ? 12 : 6
+                    anchors.rightMargin: themeHub.barStyle === "transparent" ? 12 : 6
+
+                    // SekaiPop-authentic floating comic pill islands (Transparent mode)
+                    Rectangle {
+                        visible: leftIslandBg.visible
+                        x: leftIslandBg.x
+                        y: leftIslandBg.y + 2
+                        width: leftIslandBg.width
+                        height: leftIslandBg.height
+                        radius: leftIslandBg.radius
+                        color: "#1A1B2E"
+                        antialiasing: true
+                    }
+                    Rectangle {
+                        id: leftIslandBg
+                        visible: themeHub.barStyle === "transparent" && leftContentRow.width > 4
+                        x: leftContentRow.x - 6
+                        y: (parent.height - 28) * 0.5 - 1
+                        width: leftContentRow.width + 12
+                        height: 28
+                        radius: 14
+                        color: themeHub.phoneDarkMode ? "#1A1F35" : "#FFFFFF"
+                        border.width: 2.5
+                        border.color: "#1A1B2E"
+                        antialiasing: true
+                    }
+
+                    Rectangle {
+                        visible: centerIslandBg.visible
+                        x: centerIslandBg.x
+                        y: centerIslandBg.y + 2
+                        width: centerIslandBg.width
+                        height: centerIslandBg.height
+                        radius: centerIslandBg.radius
+                        color: "#1A1B2E"
+                        antialiasing: true
+                    }
+                    Rectangle {
+                        id: centerIslandBg
+                        visible: themeHub.barStyle === "transparent" && centerContentRow.width > 4
+                        x: centerContentRow.x - 6
+                        y: (parent.height - 28) * 0.5 - 1
+                        width: centerContentRow.width + 12
+                        height: 28
+                        radius: 14
+                        color: themeHub.phoneDarkMode ? "#1A1F35" : "#FFFFFF"
+                        border.width: 2.5
+                        border.color: "#1A1B2E"
+                        antialiasing: true
+                    }
+
+                    Rectangle {
+                        visible: rightIslandBg.visible
+                        x: rightIslandBg.x
+                        y: rightIslandBg.y + 2
+                        width: rightIslandBg.width
+                        height: rightIslandBg.height
+                        radius: rightIslandBg.radius
+                        color: "#1A1B2E"
+                        antialiasing: true
+                    }
+                    Rectangle {
+                        id: rightIslandBg
+                        visible: themeHub.barStyle === "transparent" && rightContentRow.width > 4
+                        x: rightContentRow.x - 6
+                        y: (parent.height - 28) * 0.5 - 1
+                        width: rightContentRow.width + 12
+                        height: 28
+                        radius: 14
+                        color: themeHub.phoneDarkMode ? "#1A1F35" : "#FFFFFF"
+                        border.width: 2.5
+                        border.color: "#1A1B2E"
+                        antialiasing: true
+                    }
 
                     // --- Left Zone: Active App Pill + Media Pill + Active Title ---
                     Row {
@@ -2583,7 +2621,7 @@ PanelWindow {
                             elide: Text.ElideRight
                             font.family: "Segoe UI"
                             font.pixelSize: 11
-                            color: themeHub.barMutedInk
+                            color: (themeHub.barStyle === "transparent" && !themeHub.phoneDarkMode) ? "#334155" : themeHub.barMutedInk
                         }
                     }
 
@@ -3949,19 +3987,19 @@ PanelWindow {
             width: mediaPopupWindow.innerW + mediaPopupWindow.pad * 2
             height: popupStack.implicitHeight + mediaPopupWindow.pad * 2
             radius: 20
-            color: "#1A1B2E"
+            color: themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 2
                 radius: parent.radius - 2
-                color: "#FFFFFF"
+                color: themeHub.phoneCardBg
 
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 3
                     radius: parent.radius - 3
-                    color: "#F1F5FF"
+                    color: themeHub.phoneScreenBg
                 }
             }
 
@@ -3987,9 +4025,9 @@ PanelWindow {
                             width: tabLbl.implicitWidth + 18
                             height: 24
                             radius: 10
-                            color: isCurrent ? themeHub.accentA : "#FFFFFF"
+                            color: isCurrent ? themeHub.accentA : themeHub.phoneCardBg
                             border.width: 1.5
-                            border.color: "#1A1B2E"
+                            border.color: isCurrent ? "#1A1B2E" : themeHub.phoneBorder
 
                             Text {
                                 id: tabLbl
@@ -3998,15 +4036,17 @@ PanelWindow {
                                 font.family: "Segoe UI"
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
-                                color: "#1A1B2E"
+                                color: isCurrent ? "#1A1B2E" : themeHub.phoneInk
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (!isCurrent && modelData.id)
-                                        MediaService.selectSession(modelData.id)
+                                    if (!isCurrent && modelData.id) {
+                                        const sid = modelData.id
+                                        Qt.callLater(function() { MediaService.selectSession(sid) })
+                                    }
                                 }
                             }
                         }
@@ -4276,9 +4316,9 @@ PanelWindow {
                         width: 58
                         height: 28
                         radius: 10
-                        color: "#FFFFFF"
+                        color: themeHub.phoneCardBg
                         border.width: 2
-                        border.color: "#1A1B2E"
+                        border.color: themeHub.phoneBorder
                         rotation: -3
 
                         Text {
@@ -4287,7 +4327,7 @@ PanelWindow {
                             font.family: "Segoe UI"
                             font.pixelSize: 11
                             font.weight: Font.ExtraBold
-                            color: "#1A1B2E"
+                            color: themeHub.phoneInk
                         }
                     }
 
@@ -4307,9 +4347,9 @@ PanelWindow {
                             width: parent.width
                             height: 11
                             radius: 5.5
-                            color: "#E2E8F0"
+                            color: themeHub.phonePillBg
                             border.width: 2
-                            border.color: "#1A1B2E"
+                            border.color: themeHub.phoneBorder
                         }
 
                         Rectangle {
@@ -4379,9 +4419,9 @@ PanelWindow {
                         width: 58
                         height: 28
                         radius: 10
-                        color: totalChipMouse.containsMouse && mediaPopupWindow.hasLen ? "#E0F2FE" : "#FFFFFF"
+                        color: totalChipMouse.containsMouse && mediaPopupWindow.hasLen ? themeHub.hoverTint : themeHub.phoneCardBg
                         border.width: 2
-                        border.color: "#1A1B2E"
+                        border.color: totalChipMouse.containsMouse && mediaPopupWindow.hasLen ? "#1A1B2E" : themeHub.phoneBorder
                         rotation: 3
 
                         Text {
@@ -4397,7 +4437,7 @@ PanelWindow {
                             font.family: "Segoe UI"
                             font.pixelSize: 11
                             font.weight: Font.ExtraBold
-                            color: "#1A1B2E"
+                            color: totalChipMouse.containsMouse && mediaPopupWindow.hasLen ? "#1A1B2E" : themeHub.phoneInk
                         }
 
                         MouseArea {
@@ -4429,9 +4469,9 @@ PanelWindow {
                             width: 54
                             height: 38
                             radius: 12
-                            color: prevKeyArea.containsMouse ? "#E0F2FE" : "#FFFFFF"
+                            color: prevKeyArea.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
                             border.width: 2
-                            border.color: "#1A1B2E"
+                            border.color: prevKeyArea.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                             Image {
                                 anchors.centerIn: parent
                                 width: 16
@@ -4439,7 +4479,9 @@ PanelWindow {
                                 sourceSize.width: 32
                                 sourceSize.height: 32
                                 smooth: true
-                                source: "qrc:/qml/icons/skip-previous-dark.svg"
+                                source: (!prevKeyArea.containsMouse && themeHub.phoneDarkMode)
+                                    ? "qrc:/qml/icons/skip-previous-light.svg"
+                                    : "qrc:/qml/icons/skip-previous-dark.svg"
                             }
                         }
                         MouseArea {
@@ -4517,9 +4559,9 @@ PanelWindow {
                             width: 54
                             height: 38
                             radius: 12
-                            color: nextKeyArea.containsMouse ? "#E0F2FE" : "#FFFFFF"
+                            color: nextKeyArea.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
                             border.width: 2
-                            border.color: "#1A1B2E"
+                            border.color: nextKeyArea.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                             Image {
                                 anchors.centerIn: parent
                                 width: 16
@@ -4527,7 +4569,9 @@ PanelWindow {
                                 sourceSize.width: 32
                                 sourceSize.height: 32
                                 smooth: true
-                                source: "qrc:/qml/icons/skip-next-dark.svg"
+                                source: (!nextKeyArea.containsMouse && themeHub.phoneDarkMode)
+                                    ? "qrc:/qml/icons/skip-next-light.svg"
+                                    : "qrc:/qml/icons/skip-next-dark.svg"
                             }
                         }
                         MouseArea {
@@ -4552,16 +4596,16 @@ PanelWindow {
                             width: 38
                             height: 38
                             radius: 12
-                            color: closeKeyArea.containsMouse ? "#FEE2E2" : "#FFFFFF"
+                            color: closeKeyArea.containsMouse ? "#FEE2E2" : themeHub.phoneCardBg
                             border.width: 2
-                            border.color: "#1A1B2E"
+                            border.color: closeKeyArea.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                             Text {
                                 anchors.centerIn: parent
                                 text: "✕"
                                 font.family: "Segoe UI"
                                 font.pixelSize: 13
                                 font.weight: Font.Bold
-                                color: "#1A1B2E"
+                                color: closeKeyArea.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                             }
                         }
                         MouseArea {
@@ -4640,18 +4684,18 @@ PanelWindow {
             width: trayPopupWindow.cardW
             height: Math.max(118, trayCol.implicitHeight + 24)
             radius: 16
-            color: "#1A1B2E"
+            color: themeHub.phoneBorder
 
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 2
                 radius: parent.radius - 2
-                color: "#FFFFFF"
+                color: themeHub.phoneCardBg
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 2
                     radius: parent.radius - 2
-                    color: "#F1F5FF"
+                    color: themeHub.phoneScreenBg
                 }
             }
 
@@ -4668,7 +4712,7 @@ PanelWindow {
                     font.pixelSize: 10
                     font.weight: Font.ExtraBold
                     font.letterSpacing: 1
-                    color: "#475569"
+                    color: themeHub.phoneMutedInk
                 }
 
                 Text {
@@ -4678,7 +4722,7 @@ PanelWindow {
                     wrapMode: Text.Wrap
                     font.family: "Segoe UI"
                     font.pixelSize: 11
-                    color: "#64748B"
+                    color: themeHub.phoneMutedInk
                 }
 
                 Flickable {
@@ -4701,9 +4745,9 @@ PanelWindow {
                                 width: trayListCol.width
                                 height: 30
                                 radius: 9
-                                color: trayRowArea.containsMouse ? "#E0F2FE" : "#FFFFFF"
+                                color: trayRowArea.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
                                 border.width: 1.5
-                                border.color: "#1A1B2E"
+                                border.color: trayRowArea.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
 
                                 Row {
                                     anchors.fill: parent
@@ -4729,7 +4773,7 @@ PanelWindow {
                                         font.family: "Segoe UI"
                                         font.pixelSize: 11
                                         font.weight: Font.DemiBold
-                                        color: "#1A1B2E"
+                                        color: trayRowArea.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                                     }
                                 }
 
@@ -4740,8 +4784,10 @@ PanelWindow {
                                     cursorShape: Qt.PointingHandCursor
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     onClicked: mouse => {
-                                        TrayService.activateItem(modelData.index, mouse.button === Qt.RightButton)
+                                        const idx = modelData.index
+                                        const isRight = (mouse.button === Qt.RightButton)
                                         topBarWindow.trayPopupOpen = false
+                                        Qt.callLater(function() { TrayService.activateItem(idx, isRight) })
                                     }
                                 }
                             }
@@ -4752,7 +4798,7 @@ PanelWindow {
                 Rectangle {
                     width: parent.width
                     height: 1.5
-                    color: "#CBD5E1"
+                    color: themeHub.phoneBorder
                 }
 
                 Row {
@@ -4764,16 +4810,18 @@ PanelWindow {
                         width: (parent.width - 6) * 0.5
                         height: 28
                         radius: 9
-                        color: traySettingsMa.containsMouse ? themeHub.accentB : "#FFFFFF"
+                        color: traySettingsMa.containsMouse ? themeHub.accentB : themeHub.phoneCardBg
                         border.width: 1.5
-                        border.color: "#1A1B2E"
+                        border.color: traySettingsMa.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                         Row {
                             anchors.centerIn: parent
                             spacing: 5
                             Image {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 13; height: 13
-                                source: "qrc:/qml/icons/settings-dark.svg"
+                                source: (!traySettingsMa.containsMouse && themeHub.phoneDarkMode)
+                                    ? "qrc:/qml/icons/settings-light.svg"
+                                    : "qrc:/qml/icons/settings-dark.svg"
                                 smooth: true
                             }
                             Text {
@@ -4782,7 +4830,7 @@ PanelWindow {
                                 font.family: "Segoe UI"
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
-                                color: "#1A1B2E"
+                                color: traySettingsMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                             }
                         }
                         MouseArea {
@@ -6146,7 +6194,7 @@ PanelWindow {
                         id: phoneScreenBg
                         anchors.fill: parent; anchors.margins: quickPanelWindow.screenInset
                         radius: quickPanelWindow.cornerR - quickPanelWindow.screenInset
-                        color: "#F3F6FD"
+                        color: themeHub.phoneScreenBg
                         clip: true
                         antialiasing: true
                     }
@@ -6387,7 +6435,7 @@ PanelWindow {
                             font.family: "Segoe UI"
                             font.pixelSize: 21
                             font.weight: Font.Black
-                            color: "#1A1B2E"
+                            color: themeHub.phoneInk
                         }
 
                         // ---- 5 Header Square Pill Action Buttons (Settings / Refresh / Edit / Game / Power) ----
@@ -6403,19 +6451,20 @@ PanelWindow {
                                 ]
                                 delegate: Item {
                                     required property var modelData
+                                    readonly property bool isHighlight: modelData.active || hdrActMa.containsMouse
                                     width: 66; height: 68
                                     Rectangle { x: 3; y: 3; width: 62; height: 64; radius: 18; color: "#1A1B2E" }
                                     Rectangle {
                                         x: hdrActMa.pressed ? 3 : 0
                                         y: hdrActMa.pressed ? 2 : 0
                                         width: 62; height: 64; radius: 18
-                                        color: modelData.active || hdrActMa.containsMouse
+                                        color: isHighlight
                                             ? themeHub.accentB
-                                            : (modelData.act === "power" ? "#FFE4E6" : "#FFFFFF")
-                                        border.width: 3.5; border.color: "#1A1B2E"
+                                            : (modelData.act === "power" ? "#FFE4E6" : themeHub.phoneCardBg)
+                                        border.width: 3.5; border.color: isHighlight || modelData.act === "power" ? "#1A1B2E" : themeHub.phoneBorder
                                         Rectangle {
                                             anchors.fill: parent; anchors.margins: 4; radius: 14
-                                            color: "transparent"; border.width: 2; border.color: "#99FFFFFF"
+                                            color: "transparent"; border.width: 2; border.color: themeHub.phoneDarkMode && !isHighlight && modelData.act !== "power" ? "#22FFFFFF" : "#99FFFFFF"
                                         }
                                         Column {
                                             anchors.centerIn: parent; spacing: 1
@@ -6430,12 +6479,14 @@ PanelWindow {
                                                 visible: modelData.svgIcon === ""
                                                 anchors.horizontalCenter: parent.horizontalCenter
                                                 text: modelData.icon
-                                                font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.pixelSize: 21; font.weight: Font.Black
+                                                color: isHighlight || modelData.act === "power" ? "#1A1B2E" : themeHub.phoneInk
                                             }
                                             Text {
                                                 anchors.horizontalCenter: parent.horizontalCenter
                                                 text: modelData.label
-                                                font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Black
+                                                color: isHighlight || modelData.act === "power" ? "#1A1B2E" : themeHub.phoneInk
                                             }
                                         }
                                         MouseArea {
@@ -6479,9 +6530,9 @@ PanelWindow {
                             id: qpControlsCard
                             x: 36; y: 348; width: 582; height: 422
                             radius: 36
-                            color: "#E8EDF7"
+                            color: themeHub.phoneDarkMode ? "#171B2E" : "#E8EDF7"
                             border.width: 3
-                            border.color: "#1A1B2E"
+                            border.color: themeHub.phoneBorder
 
                             Column {
                                 x: 16; y: 16; width: parent.width - 32; spacing: 12
@@ -6495,16 +6546,17 @@ PanelWindow {
                                         id: wifiTile
                                         width: 268; height: 74
                                         readonly property bool isOn: SystemControl.networkType !== "Offline" && (SystemControl.networkType !== "Wi-Fi" || SystemControl.wifiEnabled)
+                                        readonly property bool darkOff: !isOn && themeHub.phoneDarkMode
                                         Rectangle { x: wifiTile.isOn ? 5 : 3; y: wifiTile.isOn ? 2 : 1; width: 263; height: 70; radius: 35; color: "#1A1B2E" }
                                         Rectangle {
                                             x: wifiTileMa.pressed ? 3 : 0
                                             y: wifiTileMa.pressed ? 2 : 0
                                             width: 263; height: 70; radius: 35
-                                            border.width: wifiTile.isOn ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: wifiTile.isOn ? 4.5 : 3; border.color: wifiTile.isOn ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: wifiTile.isOn ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: wifiTile.isOn ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: wifiTile.isOn ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: wifiTile.isOn ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: wifiTile.isOn
@@ -6519,13 +6571,15 @@ PanelWindow {
                                                 Image {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 26; height: 26; sourceSize.width: 48; sourceSize.height: 48; smooth: true
-                                                    source: SystemControl.networkType === "Wi-Fi" ? "qrc:/qml/icons/wifi-dark.svg" : "qrc:/qml/icons/network-dark.svg"
+                                                    source: SystemControl.networkType === "Wi-Fi"
+                                                        ? (wifiTile.darkOff ? "qrc:/qml/icons/wifi-light.svg" : "qrc:/qml/icons/wifi-dark.svg")
+                                                        : (wifiTile.darkOff ? "qrc:/qml/icons/network-light.svg" : "qrc:/qml/icons/network-dark.svg")
                                                 }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: parent.width - 36
-                                                    Text { width: parent.width; elide: Text.ElideRight; text: SystemControl.networkType === "Offline" ? "Wi-Fi" : SystemControl.networkType; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
-                                                    Text { width: parent.width; elide: Text.ElideRight; text: SystemControl.localIp || (SystemControl.wifiEnabled ? "Connected" : "OFF"); font.pixelSize: 15; font.weight: Font.Bold; color: "#BF1A1B2E" }
+                                                    Text { width: parent.width; elide: Text.ElideRight; text: SystemControl.networkType === "Offline" ? "Wi-Fi" : SystemControl.networkType; font.pixelSize: 19; font.weight: Font.Black; color: wifiTile.isOn ? "#1A1B2E" : themeHub.phoneInk }
+                                                    Text { width: parent.width; elide: Text.ElideRight; text: SystemControl.localIp || (SystemControl.wifiEnabled ? "Connected" : "OFF"); font.pixelSize: 15; font.weight: Font.Bold; color: wifiTile.isOn ? "#BF1A1B2E" : themeHub.phoneMutedInk }
                                                 }
                                             }
                                             MouseArea {
@@ -6547,8 +6601,8 @@ PanelWindow {
                                                 anchors.right: parent.right; anchors.rightMargin: 12
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: 28; height: 28; radius: 14
-                                                color: "#66FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                                Text { anchors.centerIn: parent; text: "▾"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: wifiTile.darkOff ? themeHub.phoneSubBg : "#66FFFFFF"; border.width: 2; border.color: wifiTile.darkOff ? themeHub.phoneBorder : "#1A1B2E"
+                                                Text { anchors.centerIn: parent; text: "▾"; font.pixelSize: 14; font.weight: Font.Black; color: wifiTile.darkOff ? themeHub.phoneInk : "#1A1B2E" }
                                                 MouseArea {
                                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                     onClicked: { SystemControl.refreshWifi(); quickPanelWindow.subDialog = "wifi" }
@@ -6562,16 +6616,17 @@ PanelWindow {
                                         id: btTile
                                         width: 268; height: 74
                                         readonly property bool isOn: SystemControl.bluetoothSupported && SystemControl.bluetoothEnabled
+                                        readonly property bool darkOff: !isOn && themeHub.phoneDarkMode
                                         Rectangle { x: btTile.isOn ? 5 : 3; y: btTile.isOn ? 2 : 1; width: 263; height: 70; radius: 35; color: "#1A1B2E" }
                                         Rectangle {
                                             x: btTileMa.pressed ? 3 : 0
                                             y: btTileMa.pressed ? 2 : 0
                                             width: 263; height: 70; radius: 35
-                                            border.width: btTile.isOn ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: btTile.isOn ? 4.5 : 3; border.color: btTile.isOn ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: btTile.isOn ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: btTile.isOn ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: btTile.isOn ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: btTile.isOn ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: btTile.isOn
@@ -6586,16 +6641,16 @@ PanelWindow {
                                                 Image {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 24; height: 24; sourceSize.width: 48; sourceSize.height: 48; smooth: true
-                                                    source: "qrc:/qml/icons/bt-dark.svg"
+                                                    source: btTile.darkOff ? "qrc:/qml/icons/bt-light.svg" : "qrc:/qml/icons/bt-dark.svg"
                                                 }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: parent.width - 34
-                                                    Text { width: parent.width; elide: Text.ElideRight; text: "Bluetooth"; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    Text { width: parent.width; elide: Text.ElideRight; text: "Bluetooth"; font.pixelSize: 19; font.weight: Font.Black; color: btTile.isOn ? "#1A1B2E" : themeHub.phoneInk }
                                                     Text {
                                                         width: parent.width; elide: Text.ElideRight
                                                         text: !SystemControl.bluetoothSupported ? "Unavailable" : (btTile.isOn ? ("ON · " + SystemControl.bluetoothDevices.length + " dev") : "OFF")
-                                                        font.pixelSize: 15; font.weight: Font.Bold; color: "#BF1A1B2E"
+                                                        font.pixelSize: 15; font.weight: Font.Bold; color: btTile.isOn ? "#BF1A1B2E" : themeHub.phoneMutedInk
                                                     }
                                                 }
                                             }
@@ -6618,8 +6673,8 @@ PanelWindow {
                                                 anchors.right: parent.right; anchors.rightMargin: 12
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: 28; height: 28; radius: 14
-                                                color: "#66FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                                Text { anchors.centerIn: parent; text: "▾"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: btTile.darkOff ? themeHub.phoneSubBg : "#66FFFFFF"; border.width: 2; border.color: btTile.darkOff ? themeHub.phoneBorder : "#1A1B2E"
+                                                Text { anchors.centerIn: parent; text: "▾"; font.pixelSize: 14; font.weight: Font.Black; color: btTile.darkOff ? themeHub.phoneInk : "#1A1B2E" }
                                                 MouseArea {
                                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                     onClicked: { SystemControl.refreshBluetooth(); quickPanelWindow.subDialog = "bt" }
@@ -6638,16 +6693,17 @@ PanelWindow {
                                         id: dmTile
                                         width: 268; height: 74
                                         readonly property bool isOn: SystemControl.darkMode
+                                        readonly property bool darkOff: !isOn && themeHub.phoneDarkMode
                                         Rectangle { x: dmTile.isOn ? 5 : 3; y: dmTile.isOn ? 2 : 1; width: 263; height: 70; radius: 35; color: "#1A1B2E" }
                                         Rectangle {
                                             x: dmTileMa.pressed ? 3 : 0
                                             y: dmTileMa.pressed ? 2 : 0
                                             width: 263; height: 70; radius: 35
-                                            border.width: dmTile.isOn ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: dmTile.isOn ? 4.5 : 3; border.color: dmTile.isOn ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: dmTile.isOn ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: dmTile.isOn ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: dmTile.isOn ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: dmTile.isOn ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: dmTile.isOn
@@ -6660,12 +6716,14 @@ PanelWindow {
                                                 Image {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 24; height: 24; sourceSize.width: 48; sourceSize.height: 48; smooth: true
-                                                    source: dmTile.isOn ? "qrc:/qml/icons/moon-dark.svg" : "qrc:/qml/icons/sun-dark.svg"
+                                                    source: dmTile.isOn
+                                                        ? "qrc:/qml/icons/moon-dark.svg"
+                                                        : (dmTile.darkOff ? "qrc:/qml/icons/sun-light.svg" : "qrc:/qml/icons/sun-dark.svg")
                                                 }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "Theme"; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
-                                                    Text { text: dmTile.isOn ? "Dark Mode" : "Light Mode"; font.pixelSize: 15; font.weight: Font.Bold; color: "#BF1A1B2E" }
+                                                    Text { text: "Theme"; font.pixelSize: 19; font.weight: Font.Black; color: dmTile.isOn ? "#1A1B2E" : themeHub.phoneInk }
+                                                    Text { text: dmTile.isOn ? "Dark Mode" : "Light Mode"; font.pixelSize: 15; font.weight: Font.Bold; color: dmTile.isOn ? "#BF1A1B2E" : themeHub.phoneMutedInk }
                                                 }
                                             }
                                             MouseArea {
@@ -6686,11 +6744,11 @@ PanelWindow {
                                             x: kaTileMa.pressed ? 3 : 0
                                             y: kaTileMa.pressed ? 2 : 0
                                             width: 263; height: 70; radius: 35
-                                            border.width: kaTile.isOn ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: kaTile.isOn ? 4.5 : 3; border.color: kaTile.isOn ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: kaTile.isOn ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: kaTile.isOn ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: kaTile.isOn ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: kaTile.isOn ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: kaTile.isOn
@@ -6700,11 +6758,11 @@ PanelWindow {
                                             Row {
                                                 anchors.left: parent.left; anchors.leftMargin: 18
                                                 anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                                                Text { anchors.verticalCenter: parent.verticalCenter; text: "☕"; font.pixelSize: 24; color: "#1A1B2E" }
+                                                Text { anchors.verticalCenter: parent.verticalCenter; text: "☕"; font.pixelSize: 24; color: kaTile.isOn ? "#1A1B2E" : themeHub.phoneInk }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "Keep Awake"; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
-                                                    Text { text: kaTile.isOn ? "Active (No Sleep)" : "OFF"; font.pixelSize: 15; font.weight: Font.Bold; color: "#BF1A1B2E" }
+                                                    Text { text: "Keep Awake"; font.pixelSize: 19; font.weight: Font.Black; color: kaTile.isOn ? "#1A1B2E" : themeHub.phoneInk }
+                                                    Text { text: kaTile.isOn ? "Active (No Sleep)" : "OFF"; font.pixelSize: 15; font.weight: Font.Bold; color: kaTile.isOn ? "#BF1A1B2E" : themeHub.phoneMutedInk }
                                                 }
                                             }
                                             MouseArea {
@@ -6729,11 +6787,11 @@ PanelWindow {
                                         Rectangle {
                                             x: micCapMa.pressed ? 2 : 0; y: micCapMa.pressed ? 2 : 0
                                             width: 263; height: 68; radius: 34
-                                            border.width: micSlider.active ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: micSlider.active ? 4.5 : 3; border.color: micSlider.active ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: micSlider.active ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: micSlider.active ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: micSlider.active ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: micSlider.active ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: micSlider.active
@@ -6743,13 +6801,13 @@ PanelWindow {
                                             Row {
                                                 anchors.left: parent.left; anchors.leftMargin: 18
                                                 anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                                                Text { anchors.verticalCenter: parent.verticalCenter; text: AudioService.micMuted ? "🔇" : "🎙"; font.pixelSize: 22; color: "#1A1B2E" }
+                                                Text { anchors.verticalCenter: parent.verticalCenter; text: AudioService.micMuted ? "🔇" : "🎙"; font.pixelSize: 22; color: micSlider.active ? "#1A1B2E" : themeHub.phoneInk }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "Microphone"; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    Text { text: "Microphone"; font.pixelSize: 19; font.weight: Font.Black; color: micSlider.active ? "#1A1B2E" : themeHub.phoneInk }
                                                     Text {
                                                         text: !AudioService.micSupported ? "No Mic" : (AudioService.micMuted ? "Muted" : (AudioService.micVolume + "%"))
-                                                        font.pixelSize: 15; font.weight: Font.Black; color: "#BF1A1B2E"
+                                                        font.pixelSize: 15; font.weight: Font.Black; color: micSlider.active ? "#BF1A1B2E" : themeHub.phoneMutedInk
                                                     }
                                                 }
                                             }
@@ -6765,7 +6823,7 @@ PanelWindow {
                                             Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: parent.width; height: 18; radius: 9
-                                                color: "#FFFFFF"; border.width: 3; border.color: "#1A1B2E"
+                                                color: themeHub.phoneCardBg; border.width: 3; border.color: themeHub.phoneBorder
                                                 Rectangle {
                                                     x: 3; y: 3; height: 12; radius: 6
                                                     width: Math.max(0, (parent.width - 6) * (AudioService.micVolume / 100.0))
@@ -6793,15 +6851,16 @@ PanelWindow {
                                         id: spkSlider
                                         width: 268; height: 104
                                         readonly property bool active: !AudioService.masterMuted
+                                        readonly property bool darkOff: !active && themeHub.phoneDarkMode
                                         Rectangle { x: spkSlider.active ? 4 : 3; y: 2; width: 263; height: 68; radius: 34; color: "#1A1B2E" }
                                         Rectangle {
                                             x: spkCapMa.pressed ? 2 : 0; y: spkCapMa.pressed ? 2 : 0
                                             width: 263; height: 68; radius: 34
-                                            border.width: spkSlider.active ? 4.5 : 3; border.color: "#1A1B2E"
+                                            border.width: spkSlider.active ? 4.5 : 3; border.color: spkSlider.active ? "#1A1B2E" : themeHub.phoneBorder
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: spkSlider.active ? themeHub.accentB : "#FFFFFF" }
-                                                GradientStop { position: 1.0; color: spkSlider.active ? themeHub.accentA : "#FFFFFF" }
+                                                GradientStop { position: 0.0; color: spkSlider.active ? themeHub.accentB : themeHub.phoneCardBg }
+                                                GradientStop { position: 1.0; color: spkSlider.active ? themeHub.accentA : themeHub.phoneCardBg }
                                             }
                                             Rectangle {
                                                 visible: spkSlider.active
@@ -6814,14 +6873,16 @@ PanelWindow {
                                                 Image {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 24; height: 24; sourceSize.width: 48; sourceSize.height: 48; smooth: true
-                                                    source: AudioService.masterMuted ? "qrc:/qml/icons/volume-cross-dark.svg" : "qrc:/qml/icons/volume-loud-dark.svg"
+                                                    source: AudioService.masterMuted
+                                                        ? (spkSlider.darkOff ? "qrc:/qml/icons/volume-cross-light.svg" : "qrc:/qml/icons/volume-cross-dark.svg")
+                                                        : (spkSlider.darkOff ? "qrc:/qml/icons/volume-loud-light.svg" : "qrc:/qml/icons/volume-loud-dark.svg")
                                                 }
                                                 Column {
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "Speaker"; font.pixelSize: 19; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    Text { text: "Speaker"; font.pixelSize: 19; font.weight: Font.Black; color: spkSlider.active ? "#1A1B2E" : themeHub.phoneInk }
                                                     Text {
                                                         text: AudioService.masterMuted ? "Muted" : (AudioService.masterVolume + "%")
-                                                        font.pixelSize: 15; font.weight: Font.Black; color: "#BF1A1B2E"
+                                                        font.pixelSize: 15; font.weight: Font.Black; color: spkSlider.active ? "#BF1A1B2E" : themeHub.phoneMutedInk
                                                     }
                                                 }
                                             }
@@ -6839,7 +6900,7 @@ PanelWindow {
                                             Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: parent.width; height: 18; radius: 9
-                                                color: "#FFFFFF"; border.width: 3; border.color: "#1A1B2E"
+                                                color: themeHub.phoneCardBg; border.width: 3; border.color: themeHub.phoneBorder
                                                 Rectangle {
                                                     x: 3; y: 3; height: 12; radius: 6
                                                     width: Math.max(0, (parent.width - 6) * (AudioService.masterVolume / 100.0))
@@ -6875,10 +6936,10 @@ PanelWindow {
                                         width: parent.width; height: 28
                                         Row {
                                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 8
-                                            Text { text: "☀ BRIGHTNESS"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                            Text { text: "☀ BRIGHTNESS"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                             Text {
                                                 text: brControl.curMon ? ("· " + (brControl.curMon.name || "Monitor")) : ""
-                                                font.pixelSize: 15; font.weight: Font.Bold; color: "#334155"
+                                                font.pixelSize: 15; font.weight: Font.Bold; color: themeHub.phoneMutedInk
                                             }
                                             Repeater {
                                                 model: brControl.monList.length > 1 ? brControl.monList.length : 0
@@ -6886,9 +6947,9 @@ PanelWindow {
                                                     required property int index
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 34; height: 26; radius: 9
-                                                    color: index === brControl.monIdx ? themeHub.accentA : "#FFFFFF"
-                                                    border.width: 2; border.color: "#1A1B2E"
-                                                    Text { anchors.centerIn: parent; text: "M" + (index + 1); font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    color: index === brControl.monIdx ? themeHub.accentA : themeHub.phoneCardBg
+                                                    border.width: 2; border.color: themeHub.phoneBorder
+                                                    Text { anchors.centerIn: parent; text: "M" + (index + 1); font.pixelSize: 13; font.weight: Font.Black; color: index === brControl.monIdx ? "#1A1B2E" : themeHub.phoneInk }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: quickPanelWindow.selectedMonitorIdx = index }
                                                 }
                                             }
@@ -6896,7 +6957,7 @@ PanelWindow {
                                         Text {
                                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                                             text: brControl.curBrightness + "%"
-                                            font.family: "Consolas"; font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                            font.family: "Consolas"; font.pixelSize: 18; font.weight: Font.Black; color: themeHub.phoneInk
                                         }
                                     }
 
@@ -6905,7 +6966,7 @@ PanelWindow {
                                         Rectangle {
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: parent.width; height: 22; radius: 11
-                                            color: "#FFFFFF"; border.width: 3; border.color: "#1A1B2E"
+                                            color: themeHub.phoneCardBg; border.width: 3; border.color: themeHub.phoneBorder
                                             Rectangle {
                                                 x: 3; y: 3; height: 16; radius: 8
                                                 width: Math.max(0, (parent.width - 6) * (brControl.curBrightness / 100.0))
@@ -6938,14 +6999,14 @@ PanelWindow {
                             id: qpBottomCard
                             x: 36; y: 786; width: 582; height: 392
                             radius: 36
-                            color: "#FFFFFF"
-                            border.width: 3; border.color: "#1A1B2E"
+                            color: themeHub.phoneCardBg
+                            border.width: 3; border.color: themeHub.phoneBorder
                             clip: true
 
                             Column {
                                 anchors.fill: parent; anchors.margins: 18; spacing: 10
 
-                                // Bottom Header: Tabs + 2.5D / 2D Toggle
+                                // Bottom Header: Tabs + Dark Surface Toggle + 2.5D / 2D Toggle
                                 Item {
                                     width: parent.width; height: 40
                                     Row {
@@ -6959,25 +7020,39 @@ PanelWindow {
                                                 required property var modelData
                                                 readonly property bool act: quickPanelWindow.bottomTab === modelData.id
                                                 width: btLbl.implicitWidth + 24; height: 38; radius: 19
-                                                color: act ? themeHub.accentB : "#F1F5F9"
-                                                border.width: 2.5; border.color: "#1A1B2E"
-                                                Text { id: btLbl; anchors.centerIn: parent; text: modelData.label; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: act ? themeHub.accentB : themeHub.phonePillBg
+                                                border.width: 2.5; border.color: act ? "#1A1B2E" : themeHub.phoneBorder
+                                                Text { id: btLbl; anchors.centerIn: parent; text: modelData.label; font.pixelSize: 15; font.weight: Font.Black; color: act ? "#1A1B2E" : themeHub.phoneInk }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: quickPanelWindow.bottomTab = modelData.id }
                                             }
                                         }
                                     }
-                                    Rectangle {
-                                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                        width: pmSwLbl.implicitWidth + 24; height: 36; radius: 18
-                                        color: topBarWindow.phoneMode ? "#1A1B2E" : "#F1F5F9"
-                                        border.width: 2.5; border.color: "#1A1B2E"
-                                        Text {
-                                            id: pmSwLbl; anchors.centerIn: parent
-                                            text: topBarWindow.phoneMode ? "2.5D" : "2D"
-                                            font.pixelSize: 15; font.weight: Font.Black
-                                            color: topBarWindow.phoneMode ? themeHub.accentB : "#1A1B2E"
+                                    Row {
+                                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 6
+                                        Rectangle {
+                                            width: 40; height: 36; radius: 18
+                                            color: themeHub.phoneDarkMode ? "#1A1B2E" : themeHub.phonePillBg
+                                            border.width: 2.5; border.color: themeHub.phoneDarkMode ? themeHub.accentA : themeHub.phoneBorder
+                                            Text {
+                                                id: pmDarkLbl; anchors.centerIn: parent
+                                                text: themeHub.phoneDarkMode ? "🌙" : "☀"
+                                                font.pixelSize: 15; font.weight: Font.Black
+                                                color: themeHub.phoneDarkMode ? themeHub.accentA : themeHub.phoneInk
+                                            }
+                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setPhoneDarkMode(!themeHub.phoneDarkMode) }
                                         }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setPhoneMode(!themeHub.phoneMode) }
+                                        Rectangle {
+                                            width: pmSwLbl.implicitWidth + 24; height: 36; radius: 18
+                                            color: topBarWindow.phoneMode ? "#1A1B2E" : themeHub.phonePillBg
+                                            border.width: 2.5; border.color: themeHub.phoneDarkMode && !topBarWindow.phoneMode ? themeHub.phoneBorder : "#1A1B2E"
+                                            Text {
+                                                id: pmSwLbl; anchors.centerIn: parent
+                                                text: topBarWindow.phoneMode ? "2.5D" : "2D"
+                                                font.pixelSize: 15; font.weight: Font.Black
+                                                color: topBarWindow.phoneMode ? themeHub.accentB : themeHub.phoneInk
+                                            }
+                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setPhoneMode(!themeHub.phoneMode) }
+                                        }
                                     }
                                 }
 
@@ -6989,7 +7064,7 @@ PanelWindow {
                                     // Compact Now Playing + Telemetry Strip (48px)
                                     Rectangle {
                                         width: parent.width; height: 48; radius: 15
-                                        color: "#F4F7FC"; border.width: 2.5; border.color: "#1A1B2E"
+                                        color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                         Row {
                                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
                                             Rectangle {
@@ -7009,7 +7084,7 @@ PanelWindow {
                                                 width: Math.max(100, parent.width - 245)
                                                 elide: Text.ElideRight
                                                 text: MediaService.hasSession ? (MediaService.title || "Playing") : ("CPU " + WindowTracker.cpuUsage + "% · RAM " + WindowTracker.ramUsage + "%")
-                                                font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
                                             }
                                             Row {
                                                 anchors.verticalCenter: parent.verticalCenter; spacing: 5
@@ -7019,17 +7094,17 @@ PanelWindow {
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: MediaService.playPause() }
                                                 }
                                                 Rectangle {
-                                                    width: 32; height: 32; radius: 16; color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                                    Text { anchors.centerIn: parent; text: "⏭"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    width: 32; height: 32; radius: 16; color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.phoneBorder
+                                                    Text { anchors.centerIn: parent; text: "⏭"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneInk }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: MediaService.next() }
                                                 }
                                             }
                                             Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: spotMiniLbl.implicitWidth + 18; height: 32; radius: 16
-                                                color: spotMiniMa.containsMouse ? themeHub.hoverTint : "#FFFFFF"
-                                                border.width: 2; border.color: "#1A1B2E"
-                                                Text { id: spotMiniLbl; anchors.centerIn: parent; text: "Spotlight"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: spotMiniMa.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
+                                                border.width: 2; border.color: themeHub.phoneBorder
+                                                Text { id: spotMiniLbl; anchors.centerIn: parent; text: "Spotlight"; font.pixelSize: 13; font.weight: Font.Black; color: spotMiniMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
                                                 MouseArea {
                                                     id: spotMiniMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: { topBarWindow.quickPanelOpen = false; themeHub.spotlightOpen = true }
@@ -7044,15 +7119,15 @@ PanelWindow {
                                         Text {
                                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                             text: "Notifications (" + NotificationService.count + ")"
-                                            font.pixelSize: 17; font.weight: Font.Black; color: "#1A1B2E"
+                                            font.pixelSize: 17; font.weight: Font.Black; color: themeHub.phoneInk
                                         }
                                         Row {
                                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 6
                                             Rectangle {
                                                 width: 30; height: 28; radius: 14
-                                                color: refNotifMa.containsMouse ? themeHub.hoverTint : "#F1F5F9"
-                                                border.width: 2; border.color: "#1A1B2E"
-                                                Text { id: refNotifLbl; anchors.centerIn: parent; text: "↻"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: refNotifMa.containsMouse ? themeHub.hoverTint : themeHub.phonePillBg
+                                                border.width: 2; border.color: themeHub.phoneBorder
+                                                Text { id: refNotifLbl; anchors.centerIn: parent; text: "↻"; font.pixelSize: 15; font.weight: Font.Black; color: refNotifMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
                                                 MouseArea {
                                                     id: refNotifMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: NotificationService.refresh()
@@ -7080,18 +7155,18 @@ PanelWindow {
                                         Rectangle {
                                             visible: !NotificationService.accessGranted
                                             anchors.fill: parent; radius: 18
-                                            color: "#FFF7ED"; border.width: 2.5; border.color: "#1A1B2E"
+                                            color: themeHub.phoneDarkMode ? "#261E1B" : "#FFF7ED"; border.width: 2.5; border.color: themeHub.phoneBorder
                                             Column {
                                                 anchors.centerIn: parent; width: parent.width - 32; spacing: 8
                                                 Text {
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     text: "Notification access required"
-                                                    font.pixelSize: 17; font.weight: Font.Black; color: "#1A1B2E"
+                                                    font.pixelSize: 17; font.weight: Font.Black; color: themeHub.phoneInk
                                                 }
                                                 Text {
                                                     width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
                                                     text: "Enable Windows notification access so SekaiDesk can display live toasts here."
-                                                    font.pixelSize: 15; font.weight: Font.DemiBold; color: "#334155"
+                                                    font.pixelSize: 15; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                 }
                                                 Row {
                                                     anchors.horizontalCenter: parent.horizontalCenter; spacing: 8
@@ -7101,8 +7176,8 @@ PanelWindow {
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: SystemControl.openSettings("ms-settings:privacy-notifications") }
                                                     }
                                                     Rectangle {
-                                                        width: 86; height: 34; radius: 17; color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
-                                                        Text { anchors.centerIn: parent; text: "Retry"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        width: 86; height: 34; radius: 17; color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.phoneBorder
+                                                        Text { anchors.centerIn: parent; text: "Retry"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: NotificationService.refresh() }
                                                     }
                                                 }
@@ -7113,18 +7188,18 @@ PanelWindow {
                                         Rectangle {
                                             visible: NotificationService.accessGranted && NotificationService.count === 0
                                             anchors.fill: parent; radius: 18
-                                            color: "#F8FAFC"; border.width: 2; border.color: "#CBD5E1"
+                                            color: themeHub.phoneSubBg; border.width: 2; border.color: themeHub.phoneBorder
                                             Column {
                                                 anchors.centerIn: parent; spacing: 6
                                                 Text {
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     text: "All caught up"
-                                                    font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                                    font.pixelSize: 18; font.weight: Font.Black; color: themeHub.phoneInk
                                                 }
                                                 Text {
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     text: "Live Windows notifications will show up here · " + themeHub.bandName
-                                                    font.pixelSize: 15; font.weight: Font.DemiBold; color: "#475569"
+                                                    font.pixelSize: 15; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                 }
                                             }
                                         }
@@ -7142,8 +7217,8 @@ PanelWindow {
                                                 width: ListView.view.width
                                                 height: Math.max(78, notifTextCol.implicitHeight + 20)
                                                 radius: 18
-                                                color: "#F8FAFC"
-                                                border.width: 2.5; border.color: "#1A1B2E"
+                                                color: themeHub.phoneSubBg
+                                                border.width: 2.5; border.color: themeHub.phoneBorder
 
                                                 Row {
                                                     anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
@@ -7184,12 +7259,12 @@ PanelWindow {
                                                                 width: Math.min(implicitWidth, parent.width - timeLbl.implicitWidth - 10)
                                                                 elide: Text.ElideRight
                                                                 text: modelData.app || "App"
-                                                                font.pixelSize: 14; font.weight: Font.Black; color: "#334155"
+                                                                font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneMutedInk
                                                             }
                                                             Text {
                                                                 id: timeLbl
                                                                 text: modelData.timeText ? ("· " + modelData.timeText) : ""
-                                                                font.pixelSize: 14; font.weight: Font.DemiBold; color: "#475569"
+                                                                font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                             }
                                                         }
 
@@ -7199,7 +7274,7 @@ PanelWindow {
                                                             elide: Text.ElideRight
                                                             maximumLineCount: 2
                                                             text: modelData.title || modelData.app || "Notification"
-                                                            font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                                            font.pixelSize: 18; font.weight: Font.Black; color: themeHub.phoneInk
                                                         }
 
                                                         Text {
@@ -7209,20 +7284,23 @@ PanelWindow {
                                                             maximumLineCount: 2
                                                             elide: Text.ElideRight
                                                             text: modelData.body || ""
-                                                            font.pixelSize: 15; font.weight: Font.DemiBold; color: "#1E293B"
+                                                            font.pixelSize: 15; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                         }
                                                     }
 
                                                     Rectangle {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         width: 32; height: 32; radius: 16
-                                                        color: notifDismissMa.containsMouse ? "#FCA5A5" : "#FFFFFF"
-                                                        border.width: 2; border.color: "#1A1B2E"
-                                                        Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        color: notifDismissMa.containsMouse ? "#FCA5A5" : themeHub.phoneCardBg
+                                                        border.width: 2; border.color: themeHub.phoneBorder
+                                                        Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 18; font.weight: Font.Black; color: notifDismissMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
                                                         MouseArea {
                                                             id: notifDismissMa
                                                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                            onClicked: NotificationService.dismiss(modelData.id)
+                                                            onClicked: {
+                                                                const nid = modelData.id
+                                                                Qt.callLater(function() { NotificationService.dismiss(nid) })
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -7236,7 +7314,7 @@ PanelWindow {
                                     visible: quickPanelWindow.bottomTab === "display"
                                     width: parent.width; spacing: 12
 
-                                    Text { text: "SCREEN MIRRORING"; font.pixelSize: 15; font.weight: Font.Black; color: "#475569" }
+                                    Text { text: "SCREEN MIRRORING"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneMutedInk }
                                     Row {
                                         width: parent.width; spacing: 8
                                         Repeater {
@@ -7249,9 +7327,9 @@ PanelWindow {
                                             delegate: Rectangle {
                                                 required property var modelData
                                                 width: Math.floor((parent.width - 24) / 4); height: 46; radius: 15
-                                                color: mirPhoneMa.containsMouse ? themeHub.accentB : "#F1F5F9"
-                                                border.width: 2.5; border.color: "#1A1B2E"
-                                                Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                color: mirPhoneMa.containsMouse ? themeHub.accentB : themeHub.phonePillBg
+                                                border.width: 2.5; border.color: themeHub.phoneBorder
+                                                Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 15; font.weight: Font.Black; color: mirPhoneMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
                                                 MouseArea {
                                                     id: mirPhoneMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: SystemControl.setDisplayMode(modelData.mode)
@@ -7260,7 +7338,7 @@ PanelWindow {
                                         }
                                     }
 
-                                    Text { text: "MONITORS (" + SystemControl.monitors.length + ")"; font.pixelSize: 15; font.weight: Font.Black; color: "#475569" }
+                                    Text { text: "MONITORS (" + SystemControl.monitors.length + ")"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneMutedInk }
                                     Flickable {
                                         width: parent.width; height: 150; contentWidth: width; contentHeight: monListCol.implicitHeight + 8; clip: true
                                         Column {
@@ -7272,15 +7350,15 @@ PanelWindow {
                                                     width: monListCol.width; spacing: 4
                                                     Item {
                                                         width: parent.width; height: 24
-                                                        Text { anchors.left: parent.left; text: modelData.name || "Monitor"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
-                                                        Text { anchors.right: parent.right; text: modelData.brightness + "%"; font.family: "Consolas"; font.pixelSize: 16; font.weight: Font.Black; color: "#D97706" }
+                                                        Text { anchors.left: parent.left; text: modelData.name || "Monitor"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                        Text { anchors.right: parent.right; text: modelData.brightness + "%"; font.family: "Consolas"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneDarkMode ? "#FBBF24" : "#D97706" }
                                                     }
                                                     Item {
                                                         width: parent.width; height: 22
                                                         Rectangle {
                                                             anchors.verticalCenter: parent.verticalCenter
                                                             width: parent.width; height: 16; radius: 8
-                                                            color: "#E2E8F0"; border.width: 2; border.color: "#1A1B2E"
+                                                            color: themeHub.phonePillBg; border.width: 2; border.color: themeHub.phoneBorder
                                                             Rectangle {
                                                                 x: 2; y: 2; height: 12; radius: 6
                                                                 width: Math.max(0, (parent.width - 4) * (modelData.brightness / 100.0))
@@ -7306,47 +7384,127 @@ PanelWindow {
 
                         // ---- Inline Wi-Fi / Bluetooth Picker Overlay inside the Phone Screen ----
                         Rectangle {
+                            id: qpSubOverlay
+                            property string passwordSsid: ""
                             visible: quickPanelWindow.subDialog !== ""
+                            onVisibleChanged: if (!visible) passwordSsid = ""
                             x: 34; y: 346; width: 586; height: 834
                             radius: 36
-                            color: "#FFFDF9"
-                            border.width: 3.5; border.color: "#1A1B2E"
+                            color: themeHub.phoneCardBg
+                            border.width: 3.5; border.color: themeHub.phoneBorder
                             z: 30
 
                             Column {
-                                anchors.fill: parent; anchors.margins: 22; spacing: 14
+                                anchors.fill: parent; anchors.margins: 22; spacing: 12
 
                                 Item {
                                     width: parent.width; height: 46
                                     Rectangle {
                                         anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                         width: 94; height: 38; radius: 19
-                                        color: "#F1F5F9"; border.width: 2.5; border.color: "#1A1B2E"
-                                        Text { anchors.centerIn: parent; text: "← Back"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: quickPanelWindow.subDialog = "" }
+                                        color: themeHub.phonePillBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                        Text { anchors.centerIn: parent; text: "← Back"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { qpSubOverlay.passwordSsid = ""; quickPanelWindow.subDialog = "" } }
                                     }
                                     Text {
                                         anchors.centerIn: parent
                                         text: quickPanelWindow.subDialog === "wifi" ? "WI-FI NETWORKS" : "BLUETOOTH DEVICES"
-                                        font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                        font.pixelSize: 18; font.weight: Font.Black; color: themeHub.phoneInk
                                     }
                                     Rectangle {
                                         anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                        width: 82; height: 38; radius: 19
-                                        color: themeHub.accentB; border.width: 2.5; border.color: "#1A1B2E"
-                                        Text { anchors.centerIn: parent; text: "Scan"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                        width: qpScanLbl.implicitWidth + 28; height: 38; radius: 19
+                                        color: ((quickPanelWindow.subDialog === "wifi" && SystemControl.wifiScanning)
+                                                || (quickPanelWindow.subDialog === "bt" && SystemControl.btScanning))
+                                               ? "#FEF3C7" : themeHub.accentB
+                                        border.width: 2.5; border.color: "#1A1B2E"
+                                        Text {
+                                            id: qpScanLbl
+                                            anchors.centerIn: parent
+                                            text: ((quickPanelWindow.subDialog === "wifi" && SystemControl.wifiScanning)
+                                                   || (quickPanelWindow.subDialog === "bt" && SystemControl.btScanning))
+                                                  ? "Scanning..." : "Scan"
+                                            font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E"
+                                        }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (quickPanelWindow.subDialog === "wifi") SystemControl.refreshWifi()
-                                                else SystemControl.refreshBluetooth()
+                                                else SystemControl.scanBluetooth()
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    visible: quickPanelWindow.subDialog === "wifi" && SystemControl.wifiStatusText !== ""
+                                    width: parent.width; elide: Text.ElideRight
+                                    text: SystemControl.wifiStatusText
+                                    font.pixelSize: 14; font.weight: Font.Black; color: themeHub.accentA
+                                }
+
+                                // Inline Wi-Fi Password Prompt inside Phone
+                                Rectangle {
+                                    visible: quickPanelWindow.subDialog === "wifi" && qpSubOverlay.passwordSsid !== ""
+                                    width: parent.width; height: 112; radius: 20
+                                    color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.accentA
+                                    Column {
+                                        anchors.fill: parent; anchors.margins: 12; spacing: 8
+                                        Text {
+                                            width: parent.width; elide: Text.ElideRight
+                                            text: "🔒 Password for " + qpSubOverlay.passwordSsid
+                                            font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
+                                        }
+                                        Row {
+                                            width: parent.width; height: 42; spacing: 8
+                                            Rectangle {
+                                                width: parent.width - 184; height: 42; radius: 12
+                                                color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.phoneBorder; clip: true
+                                                TextInput {
+                                                    id: qpWifiPwInput
+                                                    anchors.fill: parent; anchors.margins: 10
+                                                    verticalAlignment: Text.AlignVCenter
+                                                    echoMode: TextInput.Password
+                                                    font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Bold; color: themeHub.phoneInk
+                                                    selectByMouse: true
+                                                    onAccepted: {
+                                                        const target = qpSubOverlay.passwordSsid
+                                                        const pw = text
+                                                        qpSubOverlay.passwordSsid = ""
+                                                        text = ""
+                                                        SystemControl.connectWifiWithPassword(target, pw)
+                                                    }
+                                                }
+                                            }
+                                            Rectangle {
+                                                width: 96; height: 42; radius: 12; color: themeHub.accentA; border.width: 2; border.color: "#1A1B2E"
+                                                Text { anchors.centerIn: parent; text: "Connect"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                MouseArea {
+                                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        const target = qpSubOverlay.passwordSsid
+                                                        const pw = qpWifiPwInput.text
+                                                        qpSubOverlay.passwordSsid = ""
+                                                        qpWifiPwInput.text = ""
+                                                        SystemControl.connectWifiWithPassword(target, pw)
+                                                    }
+                                                }
+                                            }
+                                            Rectangle {
+                                                width: 72; height: 42; radius: 12; color: themeHub.phonePillBg; border.width: 2; border.color: themeHub.phoneBorder
+                                                Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                MouseArea {
+                                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { qpSubOverlay.passwordSsid = ""; qpWifiPwInput.text = "" }
+                                                }
                                             }
                                         }
                                     }
                                 }
 
                                 Flickable {
-                                    width: parent.width; height: parent.height - 120
+                                    width: parent.width
+                                    height: parent.height - 120 - (quickPanelWindow.subDialog === "wifi" && qpSubOverlay.passwordSsid !== "" ? 124 : 0) - (quickPanelWindow.subDialog === "wifi" && SystemControl.wifiStatusText !== "" ? 28 : 0)
                                     contentWidth: width; contentHeight: subListCol.implicitHeight + 10; clip: true
 
                                     Column {
@@ -7357,22 +7515,55 @@ PanelWindow {
                                             model: quickPanelWindow.subDialog === "wifi" ? SystemControl.wifiNetworks : []
                                             delegate: Rectangle {
                                                 required property var modelData
+                                                readonly property bool isConnecting: SystemControl.wifiConnectingSsid !== "" && (SystemControl.wifiConnectingSsid === modelData.ssid || SystemControl.wifiConnectingSsid === modelData.profile)
+                                                readonly property bool isKnown: (modelData.profile && modelData.profile !== "") || !modelData.secured
+                                                readonly property bool canForget: !!(modelData.profile && modelData.profile !== "")
                                                 width: subListCol.width; height: 56; radius: 20
-                                                color: modelData.connected ? themeHub.accentB : "#FFFFFF"
-                                                border.width: 2.5; border.color: "#1A1B2E"
+                                                color: modelData.connected ? themeHub.accentB : (isConnecting ? "#FEF3C7" : themeHub.phoneSubBg)
+                                                border.width: 2.5; border.color: (modelData.connected || isConnecting) ? "#1A1B2E" : themeHub.phoneBorder
                                                 Text {
-                                                    x: 18; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 130; elide: Text.ElideRight
-                                                    text: (modelData.connected ? "✓ " : "") + (modelData.ssid || "Hidden Network")
-                                                    font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                    x: 18; anchors.verticalCenter: parent.verticalCenter; width: parent.width - (canForget ? 215 : 155); elide: Text.ElideRight
+                                                    text: (modelData.connected ? "✓ " : (modelData.secured && !isKnown ? "🔒 " : "")) + (modelData.ssid || "Hidden Network")
+                                                    font.pixelSize: 16; font.weight: Font.Black; color: (modelData.connected || isConnecting) ? "#1A1B2E" : themeHub.phoneInk
                                                 }
                                                 Text {
-                                                    anchors.right: parent.right; anchors.rightMargin: 18; anchors.verticalCenter: parent.verticalCenter
-                                                    text: (modelData.signal || 0) + "%"
-                                                    font.family: "Consolas"; font.pixelSize: 15; font.weight: Font.Black; color: "#334155"
+                                                    anchors.right: canForget ? qpWifiFgtBtn.left : parent.right
+                                                    anchors.rightMargin: canForget ? 10 : 18
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: isConnecting ? "Connecting..." : ((modelData.signal || 0) + "%")
+                                                    font.family: "Consolas"; font.pixelSize: 15; font.weight: Font.Black; color: (modelData.connected || isConnecting) ? "#1A1B2E" : themeHub.phoneMutedInk
                                                 }
                                                 MouseArea {
-                                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: SystemControl.connectWifi(modelData.ssid)
+                                                    anchors.fill: parent; anchors.rightMargin: canForget ? 74 : 0; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (modelData.connected)
+                                                            return
+                                                        if (isKnown) {
+                                                            const prof = modelData.profile || modelData.ssid
+                                                            qpSubOverlay.passwordSsid = ""
+                                                            Qt.callLater(function() { SystemControl.connectWifi(prof) })
+                                                        } else {
+                                                            qpSubOverlay.passwordSsid = modelData.ssid
+                                                            qpWifiPwInput.text = ""
+                                                            qpWifiPwInput.forceActiveFocus()
+                                                        }
+                                                    }
+                                                }
+                                                Rectangle {
+                                                    id: qpWifiFgtBtn
+                                                    visible: canForget
+                                                    anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                                                    width: 56; height: 28; radius: 14
+                                                    color: qpWifiFgtMa.containsMouse ? "#FB7185" : themeHub.phonePillBg
+                                                    border.width: 2; border.color: "#1A1B2E"
+                                                    Text { anchors.centerIn: parent; text: "Forget"; font.pixelSize: 11; font.weight: Font.Black; color: qpWifiFgtMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
+                                                    MouseArea {
+                                                        id: qpWifiFgtMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            const prof = modelData.profile
+                                                            Qt.callLater(function() { SystemControl.forgetWifi(prof) })
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -7382,37 +7573,79 @@ PanelWindow {
                                             model: quickPanelWindow.subDialog === "bt" ? SystemControl.bluetoothDevices : []
                                             delegate: Rectangle {
                                                 required property var modelData
+                                                readonly property bool canForget: (modelData.paired !== false) && !!(modelData.address && modelData.address !== "" && modelData.address !== "0")
                                                 width: subListCol.width; height: 56; radius: 20
-                                                color: modelData.connected ? themeHub.accentA : "#FFFFFF"
-                                                border.width: 2.5; border.color: "#1A1B2E"
+                                                color: modelData.connected ? themeHub.accentA : themeHub.phoneSubBg
+                                                border.width: 2.5; border.color: modelData.connected ? "#1A1B2E" : themeHub.phoneBorder
                                                 Text {
-                                                    x: 18; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 140; elide: Text.ElideRight
+                                                    x: 18; anchors.verticalCenter: parent.verticalCenter; width: parent.width - (canForget ? 210 : 140); elide: Text.ElideRight
                                                     text: modelData.name || "Bluetooth Device"
-                                                    font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                    font.pixelSize: 16; font.weight: Font.Black; color: modelData.connected ? "#1A1B2E" : themeHub.phoneInk
                                                 }
                                                 Text {
-                                                    anchors.right: parent.right; anchors.rightMargin: 18; anchors.verticalCenter: parent.verticalCenter
-                                                    text: modelData.connected ? "Connected" : "Paired"
-                                                    font.pixelSize: 14; font.weight: Font.Black; color: "#334155"
+                                                    anchors.right: canForget ? qpBtFgtBtn.left : parent.right
+                                                    anchors.rightMargin: canForget ? 10 : 18
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: modelData.connected ? "Connected" : (modelData.paired !== false ? "Paired" : "Nearby")
+                                                    font.pixelSize: 14; font.weight: Font.Black; color: modelData.connected ? "#1A1B2E" : themeHub.phoneMutedInk
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent; anchors.rightMargin: canForget ? 74 : 0; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (!modelData.connected && modelData.paired === false) {
+                                                            topBarWindow.quickPanelOpen = false
+                                                            SystemControl.openAddDeviceDialog()
+                                                        }
+                                                    }
+                                                }
+                                                Rectangle {
+                                                    id: qpBtFgtBtn
+                                                    visible: canForget
+                                                    anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                                                    width: 56; height: 28; radius: 14
+                                                    color: qpBtFgtMa.containsMouse ? "#FB7185" : themeHub.phonePillBg
+                                                    border.width: 2; border.color: "#1A1B2E"
+                                                    Text { anchors.centerIn: parent; text: "Forget"; font.pixelSize: 11; font.weight: Font.Black; color: qpBtFgtMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
+                                                    MouseArea {
+                                                        id: qpBtFgtMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            const addr = modelData.address
+                                                            Qt.callLater(function() { SystemControl.forgetBluetooth(addr) })
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                Rectangle {
-                                    width: parent.width; height: 48; radius: 24
-                                    color: "#F1F5F9"; border.width: 2.5; border.color: "#1A1B2E"
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: quickPanelWindow.subDialog === "wifi" ? "Open Windows Wi-Fi Settings" : "Open Windows Bluetooth Settings"
-                                        font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                Row {
+                                    width: parent.width; spacing: 10
+                                    Rectangle {
+                                        visible: quickPanelWindow.subDialog === "bt"
+                                        width: 170; height: 48; radius: 24
+                                        color: themeHub.accentA; border.width: 2.5; border.color: "#1A1B2E"
+                                        Text { anchors.centerIn: parent; text: "+ Add Device"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { topBarWindow.quickPanelOpen = false; SystemControl.openAddDeviceDialog() }
+                                        }
                                     }
-                                    MouseArea {
-                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            topBarWindow.quickPanelOpen = false
-                                            SystemControl.openSettings(quickPanelWindow.subDialog === "wifi" ? "ms-settings:network-wifi" : "ms-settings:bluetooth")
+                                    Rectangle {
+                                        width: quickPanelWindow.subDialog === "bt" ? (parent.width - 180) : parent.width
+                                        height: 48; radius: 24
+                                        color: themeHub.phonePillBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: quickPanelWindow.subDialog === "wifi" ? "Open Windows Wi-Fi Settings" : "Open Bluetooth Settings"
+                                            font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                topBarWindow.quickPanelOpen = false
+                                                SystemControl.openSettings(quickPanelWindow.subDialog === "wifi" ? "ms-settings:network-wifi" : "ms-settings:bluetooth")
+                                            }
                                         }
                                     }
                                 }
@@ -7440,9 +7673,9 @@ PanelWindow {
                             id: alertBannerCard
                             anchors.fill: parent
                             radius: 26
-                            color: "#FFFDF9"
+                            color: themeHub.phoneCardBg
                             border.width: 3.5
-                            border.color: "#1A1B2E"
+                            border.color: themeHub.phoneBorder
                             clip: true
 
                             Rectangle {
@@ -7472,7 +7705,7 @@ PanelWindow {
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: quickPanelWindow.alertNotifItem && quickPanelWindow.alertNotifItem.timeText ? quickPanelWindow.alertNotifItem.timeText : "NOW"
-                                        font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: "#64748B"
+                                        font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: themeHub.phoneMutedInk
                                     }
                                 }
 
@@ -7480,7 +7713,7 @@ PanelWindow {
                                     width: parent.width
                                     elide: Text.ElideRight
                                     text: quickPanelWindow.alertNotifItem && quickPanelWindow.alertNotifItem.title ? quickPanelWindow.alertNotifItem.title : "New Notification"
-                                    font.family: "Segoe UI"; font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                    font.family: "Segoe UI"; font.pixelSize: 18; font.weight: Font.Black; color: themeHub.phoneInk
                                 }
 
                                 Text {
@@ -7489,7 +7722,7 @@ PanelWindow {
                                     maximumLineCount: 2
                                     wrapMode: Text.WordWrap
                                     text: quickPanelWindow.alertNotifItem && quickPanelWindow.alertNotifItem.body ? quickPanelWindow.alertNotifItem.body : ""
-                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#334155"
+                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                 }
                             }
 
@@ -7674,9 +7907,9 @@ PanelWindow {
                             anchors.fill: parent
                             anchors.margins: 24
                             radius: quickPanelWindow.landCornerR - 24
-                            color: Qt.tint("#FAFAFF", Qt.rgba(themeHub.accentB.r, themeHub.accentB.g, themeHub.accentB.b, 0.14))
+                            color: themeHub.phoneLandBg
                             border.width: 3
-                            border.color: "#1A1B2E"
+                            border.color: themeHub.phoneBorder
                             clip: true
 
                             // SekaiPop diagonal stage-light bands
@@ -7747,13 +7980,14 @@ PanelWindow {
                                         Rectangle {
                                             x: landBackMa.pressed ? 3 : 0; y: landBackMa.pressed ? 3 : 0
                                             width: parent.width; height: parent.height; radius: 16
-                                            color: landBackMa.containsMouse ? themeHub.accentA : "#FFFFFF"
-                                            border.width: 3; border.color: "#1A1B2E"
+                                            color: landBackMa.containsMouse ? themeHub.accentA : themeHub.phoneCardBg
+                                            border.width: 3; border.color: landBackMa.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                                             Text {
                                                 id: backLbl
                                                 anchors.centerIn: parent
                                                 text: themeHub.settingsSection !== "" ? "← HUB" : "← PHONE"
-                                                font.family: "Segoe UI"; font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.family: "Segoe UI"; font.pixelSize: 18; font.weight: Font.Black
+                                                color: landBackMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                                             }
                                             MouseArea {
                                                 id: landBackMa
@@ -7796,13 +8030,13 @@ PanelWindow {
                                                 if (s === "about") return "06 · ABOUT"
                                                 return "SEKAIDESK SETTINGS"
                                             }
-                                            font.family: "Segoe UI"; font.pixelSize: 28; font.weight: Font.Black; color: "#1A1B2E"
+                                            font.family: "Segoe UI"; font.pixelSize: 28; font.weight: Font.Black; color: themeHub.phoneInk
                                         }
                                         Text {
                                             text: themeHub.settingsSection === ""
                                                   ? "Choose a category card to customize your desktop"
                                                   : "Changes apply live and save automatically"
-                                            font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.DemiBold; color: "#475569"
+                                            font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                         }
                                     }
                                 }
@@ -7839,12 +8073,13 @@ PanelWindow {
                                         Rectangle {
                                             x: landWallsMa.pressed ? 3 : 0; y: landWallsMa.pressed ? 3 : 0
                                             width: parent.width; height: parent.height; radius: 14
-                                            color: landWallsMa.containsMouse ? themeHub.accentA : "#FFFFFF"
-                                            border.width: 3; border.color: "#1A1B2E"
+                                            color: landWallsMa.containsMouse ? themeHub.accentA : themeHub.phoneCardBg
+                                            border.width: 3; border.color: landWallsMa.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "🖼 WALLS"
-                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black
+                                                color: landWallsMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                                             }
                                             MouseArea {
                                                 id: landWallsMa
@@ -7865,12 +8100,13 @@ PanelWindow {
                                         Rectangle {
                                             x: landEditMa.pressed ? 3 : 0; y: landEditMa.pressed ? 3 : 0
                                             width: parent.width; height: parent.height; radius: 14
-                                            color: themeHub.editMode ? themeHub.accentB : (landEditMa.containsMouse ? "#E0F2FE" : "#FFFFFF")
-                                            border.width: 3; border.color: "#1A1B2E"
+                                            color: themeHub.editMode ? themeHub.accentB : (landEditMa.containsMouse ? "#E0F2FE" : themeHub.phoneCardBg)
+                                            border.width: 3; border.color: (themeHub.editMode || landEditMa.containsMouse) ? "#1A1B2E" : themeHub.phoneBorder
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: themeHub.editMode ? "✎ EDITING" : "✎ EDIT"
-                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black
+                                                color: (themeHub.editMode || landEditMa.containsMouse) ? "#1A1B2E" : themeHub.phoneInk
                                             }
                                             MouseArea {
                                                 id: landEditMa
@@ -7915,8 +8151,8 @@ PanelWindow {
                             Rectangle {
                                 x: 58; y: 94
                                 width: parent.width - 82; height: 3
-                                color: "#1A1B2E"
-                                opacity: 0.14
+                                color: themeHub.phoneInk
+                                opacity: 0.16
                             }
 
                             // ---- Page Area ----
@@ -7955,6 +8191,7 @@ PanelWindow {
                                             readonly property int row: Math.floor(index / 3)
                                             wipeFrom: themeHub.accentB
                                             wipeTo: themeHub.accentA
+                                            darkMode: themeHub.phoneDarkMode
                                             x: col * (404 + 24) + row * 34
                                             y: 4 + row * (271 + 26)
                                             tileW: 404
@@ -7979,7 +8216,7 @@ PanelWindow {
                                     // Left column: Notifications & Peek
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: quickLeftFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -7988,8 +8225,8 @@ PanelWindow {
                                             Column {
                                                 id: quickLeftCol
                                                 width: quickLeftFlick.width; spacing: 14
-                                                Text { text: "NOTIFICATIONS & PEEK"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
-                                                Text { text: "Choose how arriving notifications appear without interfering with the Dock."; wrapMode: Text.WordWrap; width: parent.width; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.DemiBold; color: "#475569" }
+                                                Text { text: "NOTIFICATIONS & PEEK"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                Text { text: "Choose how arriving notifications appear without interfering with the Dock."; wrapMode: Text.WordWrap; width: parent.width; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk }
 
                                                 Column {
                                                     width: parent.width; spacing: 10
@@ -8001,14 +8238,15 @@ PanelWindow {
                                                         ]
                                                         delegate: Rectangle {
                                                             required property var modelData
+                                                            readonly property bool sel: themeHub.notifyStyle === modelData.val
                                                             width: parent.width; height: 76; radius: 16
-                                                            color: themeHub.notifyStyle === modelData.val ? "#ECFEFF" : "#F8FAFC"
-                                                            border.width: themeHub.notifyStyle === modelData.val ? 3.5 : 2
-                                                            border.color: themeHub.notifyStyle === modelData.val ? themeHub.accentA : "#CBD5E1"
+                                                            color: sel ? (themeHub.phoneDarkMode ? "#132E36" : "#ECFEFF") : themeHub.phoneSubBg
+                                                            border.width: sel ? 3.5 : 2
+                                                            border.color: sel ? themeHub.accentA : themeHub.phoneBorder
                                                             Column {
                                                                 anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 16; anchors.right: parent.right; anchors.rightMargin: 16; spacing: 3
-                                                                Text { text: modelData.title; font.family: "Segoe UI"; font.pixelSize: 17; font.weight: Font.Black; color: "#1A1B2E" }
-                                                                Text { text: modelData.desc; width: parent.width; elide: Text.ElideRight; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#64748B" }
+                                                                Text { text: modelData.title; font.family: "Segoe UI"; font.pixelSize: 17; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                                Text { text: modelData.desc; width: parent.width; elide: Text.ElideRight; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk }
                                                             }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setNotifyStyle(modelData.val) }
                                                         }
@@ -8018,8 +8256,8 @@ PanelWindow {
                                                 // Quiet Fullscreen toggle
                                                 Rectangle {
                                                     width: parent.width; height: 58; radius: 16
-                                                    color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
-                                                    Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: "Quiet Notifications in Fullscreen"; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                    Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: "Quiet Notifications in Fullscreen"; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                                     Rectangle {
                                                         anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter
                                                         width: 78; height: 34; radius: 17
@@ -8049,7 +8287,7 @@ PanelWindow {
                                     // Right column: OSD, Phone 2.5D & Quick Hardware
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: quickRightFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8058,10 +8296,11 @@ PanelWindow {
                                             Column {
                                                 id: quickRightCol
                                                 width: quickRightFlick.width; spacing: 14
-                                                Text { text: "CHASSIS, OSD & QUICK TOGGLES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "CHASSIS, OSD & QUICK TOGGLES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
 
                                                 Repeater {
                                                     model: [
+                                                        { label: "Dark Surface (Night Mode)", sub: "Dim QuickPanel phone & Settings cards for low-light use", val: themeHub.phoneDarkMode, act: "phoneDark" },
                                                         { label: "2.5D Tilted Phone Chassis", sub: "Extruded metallic depth walls & 3D flip", val: themeHub.phoneMode, act: "phone" },
                                                         { label: "SekaiPop On-Screen Display (OSD)", sub: "Show pill HUD on Volume / Brightness / Dark Mode", val: themeHub.osdEnabled, act: "osd" },
                                                         { label: "System Dark Mode", sub: "Toggle Windows dark/light app theme", val: SystemControl.darkMode, act: "dark" },
@@ -8070,11 +8309,11 @@ PanelWindow {
                                                     delegate: Rectangle {
                                                         required property var modelData
                                                         width: parent.width; height: 78; radius: 16
-                                                        color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                        color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                         Column {
                                                             anchors.left: parent.left; anchors.leftMargin: 16; anchors.right: swBadge.left; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; spacing: 3
-                                                            Text { text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 17; font.weight: Font.Black; color: "#1A1B2E" }
-                                                            Text { text: modelData.sub; width: parent.width; elide: Text.ElideRight; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#64748B" }
+                                                            Text { text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 17; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                            Text { text: modelData.sub; width: parent.width; elide: Text.ElideRight; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk }
                                                         }
                                                         Rectangle {
                                                             id: swBadge
@@ -8087,7 +8326,8 @@ PanelWindow {
                                                         MouseArea {
                                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                             onClicked: {
-                                                                if (modelData.act === "phone") themeHub.setPhoneMode(!themeHub.phoneMode)
+                                                                if (modelData.act === "phoneDark") themeHub.setPhoneDarkMode(!themeHub.phoneDarkMode)
+                                                                else if (modelData.act === "phone") themeHub.setPhoneMode(!themeHub.phoneMode)
                                                                 else if (modelData.act === "osd") themeHub.setOsdEnabled(!themeHub.osdEnabled)
                                                                 else if (modelData.act === "dark") SystemControl.toggleDarkMode()
                                                                 else if (modelData.act === "mute") AudioService.toggleMasterMute()
@@ -8123,7 +8363,7 @@ PanelWindow {
                                     // Left: Theme Bands & Wallpaper Match
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: genLeftFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8132,7 +8372,7 @@ PanelWindow {
                                             Column {
                                                 id: genLeftCol
                                                 width: genLeftFlick.width; spacing: 14
-                                                Text { text: "UNIT BAND PALETTES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "UNIT BAND PALETTES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
                                                 Grid {
                                                     columns: 2; columnSpacing: 12; rowSpacing: 12; width: parent.width
                                                     Repeater {
@@ -8141,8 +8381,8 @@ PanelWindow {
                                                             required property var modelData
                                                             readonly property bool sel: !themeHub.useCustomPalette && themeHub.bandId === modelData.id
                                                             width: (parent.width - 12) * 0.5; height: 78; radius: 16
-                                                            color: sel ? "#F0FDFA" : "#F8FAFC"
-                                                            border.width: sel ? 3.5 : 2; border.color: sel ? modelData.A : "#1A1B2E"
+                                                            color: sel ? (themeHub.phoneDarkMode ? "#172E33" : "#F0FDFA") : themeHub.phoneSubBg
+                                                            border.width: sel ? 3.5 : 2; border.color: sel ? modelData.A : themeHub.phoneBorder
                                                             Row {
                                                                 anchors.fill: parent; anchors.margins: 12; spacing: 12
                                                                 Rectangle {
@@ -8158,7 +8398,7 @@ PanelWindow {
                                                                     width: parent.width - 58
                                                                     spacing: 2
                                                                     Text { text: modelData.shortName; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Black; color: modelData.A }
-                                                                    Text { width: parent.width; elide: Text.ElideRight; text: modelData.name; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                    Text { width: parent.width; elide: Text.ElideRight; text: modelData.name; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                                                 }
                                                             }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setBand(modelData.id) }
@@ -8169,14 +8409,14 @@ PanelWindow {
                                                 // Wallpaper Match button
                                                 Rectangle {
                                                     width: parent.width; height: 64; radius: 16
-                                                    color: themeHub.useCustomPalette ? "#ECFEFF" : "#F8FAFC"
-                                                    border.width: themeHub.useCustomPalette ? 3.5 : 2.5; border.color: "#1A1B2E"
+                                                    color: themeHub.useCustomPalette ? (themeHub.phoneDarkMode ? "#132E36" : "#ECFEFF") : themeHub.phoneSubBg
+                                                    border.width: themeHub.useCustomPalette ? 3.5 : 2.5; border.color: themeHub.useCustomPalette ? themeHub.accentA : themeHub.phoneBorder
                                                     Row {
                                                         anchors.centerIn: parent; spacing: 10
                                                         Text { text: "🎨"; font.pixelSize: 22 }
                                                         Text {
                                                             text: themeHub.useCustomPalette ? "WALLPAPER MATCH ACTIVE (RE-EXTRACT)" : "MATCH PALETTE TO CURRENT WALLPAPER"
-                                                            font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                                            font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
                                                         }
                                                     }
                                                     MouseArea {
@@ -8195,7 +8435,7 @@ PanelWindow {
                                     // Right: Clock & Weather Settings
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: genRightFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8204,14 +8444,14 @@ PanelWindow {
                                             Column {
                                                 id: genRightCol
                                                 width: genRightFlick.width; spacing: 14
-                                                Text { text: "CLOCK & WEATHER"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "CLOCK & WEATHER"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
 
                                                 // Weather City input
                                                 Row {
                                                     width: parent.width; spacing: 10
                                                     Rectangle {
                                                         width: parent.width - 216; height: 50; radius: 14
-                                                        color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                        color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                         clip: true
                                                         TextInput {
                                                             id: landCityInput
@@ -8220,7 +8460,7 @@ PanelWindow {
                                                             clip: true
                                                             selectByMouse: true
                                                             text: WeatherService.city
-                                                            font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Bold; color: "#1A1B2E"
+                                                            font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Bold; color: themeHub.phoneInk
                                                             onAccepted: WeatherService.setCity(text.trim())
                                                             Keys.onEscapePressed: event => {
                                                                 qpKeyCatcher.forceActiveFocus()
@@ -8241,8 +8481,8 @@ PanelWindow {
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: WeatherService.setCity(landCityInput.text.trim()) }
                                                     }
                                                     Rectangle {
-                                                        width: 98; height: 50; radius: 14; color: "#F1F5F9"; border.width: 2.5; border.color: "#1A1B2E"
-                                                        Text { anchors.centerIn: parent; text: "↻ SYNC"; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        width: 98; height: 50; radius: 14; color: themeHub.phonePillBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                        Text { anchors.centerIn: parent; text: "↻ SYNC"; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: WeatherService.refresh() }
                                                     }
                                                 }
@@ -8254,10 +8494,11 @@ PanelWindow {
                                                         model: [{ l: "°C", v: "C" }, { l: "°F", v: "F" }]
                                                         delegate: Rectangle {
                                                             required property var modelData
+                                                            readonly property bool sel: themeHub.weatherUnit === modelData.v
                                                             width: 74; height: 44; radius: 12
-                                                            color: themeHub.weatherUnit === modelData.v ? themeHub.accentA : "#F1F5F9"
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentA : themeHub.phonePillBg
+                                                            border.width: 2.5; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setWeatherUnit(modelData.v) }
                                                         }
                                                     }
@@ -8266,10 +8507,11 @@ PanelWindow {
                                                         model: [{ l: "CARD", v: "card" }, { l: "COMPACT", v: "compact" }]
                                                         delegate: Rectangle {
                                                             required property var modelData
+                                                            readonly property bool sel: themeHub.weatherStyle === modelData.v
                                                             width: 120; height: 44; radius: 12
-                                                            color: themeHub.weatherStyle === modelData.v ? themeHub.accentB : "#F1F5F9"
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentB : themeHub.phonePillBg
+                                                            border.width: 2.5; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setWeatherStyle(modelData.v) }
                                                         }
                                                     }
@@ -8282,10 +8524,11 @@ PanelWindow {
                                                         model: [{ l: "KEYS", v: 0 }, { l: "TOWER", v: 1 }, { l: "STICKER", v: 2 }, { l: "STACK", v: 3 }]
                                                         delegate: Rectangle {
                                                             required property var modelData
+                                                            readonly property bool sel: themeHub.clockStyle === modelData.v
                                                             width: (parent.width - 30) / 4; height: 46; radius: 12
-                                                            color: themeHub.clockStyle === modelData.v ? themeHub.accentA : "#F1F5F9"
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentA : themeHub.phonePillBg
+                                                            border.width: 2.5; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setClockStyle(modelData.v) }
                                                         }
                                                     }
@@ -8301,8 +8544,8 @@ PanelWindow {
                                                     delegate: Rectangle {
                                                         required property var modelData
                                                         width: parent.width; height: 54; radius: 14
-                                                        color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
-                                                        Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                        Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         Rectangle {
                                                             anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter
                                                             width: 74; height: 32; radius: 16
@@ -8332,7 +8575,7 @@ PanelWindow {
 
                                     Rectangle {
                                         width: (parent.width - 24) * 0.45; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: barLeftFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8341,26 +8584,25 @@ PanelWindow {
                                             Column {
                                                 id: barLeftCol
                                                 width: barLeftFlick.width; spacing: 14
-                                                Text { text: "BAR STYLE & EDGE"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
-                                                Grid {
-                                                    columns: 2; columnSpacing: 12; rowSpacing: 12; width: parent.width
+                                                Text { text: "BAR STYLE & EDGE"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                Row {
+                                                    width: parent.width; spacing: 10
                                                     Repeater {
                                                         model: [
-                                                            { id: "float",       name: "Float",       desc: "Rounded detached bar" },
-                                                            { id: "straight",    name: "Straight",    desc: "Flush crisp edge" },
-                                                            { id: "capsule",     name: "Capsule",     desc: "Pill-outlined frame" },
-                                                            { id: "transparent", name: "Transparent", desc: "Pure blur overlay" }
+                                                            { id: "transparent", name: "Transparent", desc: "Floating islands" },
+                                                            { id: "blur",        name: "Blur",        desc: "Frosted glass" },
+                                                            { id: "straight",    name: "Straight",    desc: "Solid edge" }
                                                         ]
                                                         delegate: Rectangle {
                                                             required property var modelData
                                                             readonly property bool sel: themeHub.barStyle === modelData.id
-                                                            width: (parent.width - 12) * 0.5; height: 88; radius: 16
-                                                            color: sel ? "#FEF3C7" : "#F8FAFC"
-                                                            border.width: sel ? 3.5 : 2; border.color: "#1A1B2E"
+                                                            width: (parent.width - 20) / 3; height: 84; radius: 16
+                                                            color: sel ? "#FEF3C7" : themeHub.phoneSubBg
+                                                            border.width: sel ? 3.5 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
                                                             Column {
-                                                                anchors.centerIn: parent; spacing: 4; width: parent.width - 20
-                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; font.family: "Segoe UI"; font.pixelSize: 18; font.weight: Font.Black; color: "#1A1B2E" }
-                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.desc; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#64748B" }
+                                                                anchors.centerIn: parent; spacing: 4; width: parent.width - 14
+                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk; elide: Text.ElideRight; width: parent.width; horizontalAlignment: Text.AlignHCenter }
+                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.desc; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: sel ? "#475569" : themeHub.phoneMutedInk; elide: Text.ElideRight; width: parent.width; horizontalAlignment: Text.AlignHCenter }
                                                             }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setBarStyle(modelData.id) }
                                                         }
@@ -8369,7 +8611,7 @@ PanelWindow {
                                                 // 4-Edge Selector
                                                 Column {
                                                     width: parent.width; spacing: 8
-                                                    Text { text: "SCREEN EDGE"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#64748B" }
+                                                    Text { text: "SCREEN EDGE"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneMutedInk }
                                                     Row {
                                                         width: parent.width; spacing: 8
                                                         Repeater {
@@ -8383,9 +8625,9 @@ PanelWindow {
                                                                 required property var modelData
                                                                 readonly property bool sel: themeHub.barEdge === modelData.id
                                                                 width: (parent.width - 24) / 4; height: 46; radius: 12
-                                                                color: sel ? themeHub.accentA : "#F1F5F9"
-                                                                border.width: sel ? 3 : 2; border.color: "#1A1B2E"
-                                                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                color: sel ? themeHub.accentA : themeHub.phonePillBg
+                                                                border.width: sel ? 3 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setBarEdge(modelData.id) }
                                                             }
                                                         }
@@ -8403,12 +8645,12 @@ PanelWindow {
                                                             required property var modelData
                                                             readonly property bool sel: themeHub.barAutoHide === modelData.val
                                                             width: (parent.width - 10) * 0.5; height: 68; radius: 16
-                                                            color: sel ? themeHub.accentB : "#F8FAFC"
-                                                            border.width: sel ? 3 : 2; border.color: "#1A1B2E"
+                                                            color: sel ? themeHub.accentB : themeHub.phoneSubBg
+                                                            border.width: sel ? 3 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
                                                             Column {
                                                                 anchors.centerIn: parent; spacing: 3
-                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
-                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.desc; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#475569" }
+                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
+                                                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.desc; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: sel ? "#334155" : themeHub.phoneMutedInk }
                                                             }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setBarAutoHide(modelData.val) }
                                                         }
@@ -8420,7 +8662,7 @@ PanelWindow {
 
                                     Rectangle {
                                         width: (parent.width - 24) * 0.55; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: barRightFlick
                                             anchors.fill: parent; anchors.margins: 20
@@ -8429,7 +8671,7 @@ PanelWindow {
                                             Column {
                                                 id: barRightCol
                                                 width: barRightFlick.width; spacing: 10
-                                                Text { text: "VISIBLE TOPBAR MODULES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "VISIBLE TOPBAR MODULES"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
                                                 Repeater {
                                                     model: [
                                                         { label: "Active App Badge & Window Title", val: themeHub.barShowActiveWindow, k: "win" },
@@ -8443,8 +8685,8 @@ PanelWindow {
                                                     delegate: Rectangle {
                                                         required property var modelData
                                                         width: parent.width; height: 50; radius: 14
-                                                        color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
-                                                        Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                        Text { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         Rectangle {
                                                             anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter
                                                             width: 72; height: 30; radius: 15
@@ -8467,11 +8709,11 @@ PanelWindow {
                                                 }
                                                 Rectangle {
                                                     width: parent.width; height: 58; radius: 14
-                                                    color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Text {
                                                         anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter
                                                         text: "MEDIA PILL VISUALIZER"
-                                                        font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                                        font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
                                                     }
                                                     Row {
                                                         anchors.right: parent.right; anchors.rightMargin: 14; anchors.verticalCenter: parent.verticalCenter
@@ -8486,9 +8728,9 @@ PanelWindow {
                                                                 required property var modelData
                                                                 readonly property bool sel: themeHub.barMediaVizStyle === modelData.id
                                                                 width: 74; height: 34; radius: 10
-                                                                color: sel ? themeHub.accentB : "#FFFFFF"
-                                                                border.width: sel ? 2.5 : 2; border.color: "#1A1B2E"
-                                                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                color: sel ? themeHub.accentB : themeHub.phoneCardBg
+                                                                border.width: sel ? 2.5 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                                Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                                 MouseArea {
                                                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                                     onClicked: themeHub.setBarMediaVizStyle(modelData.id)
@@ -8511,7 +8753,7 @@ PanelWindow {
                                     // Left: Dock customization
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: dskLeftFlick
                                             anchors.fill: parent; anchors.margins: 20
@@ -8520,7 +8762,7 @@ PanelWindow {
                                             Column {
                                                 id: dskLeftCol
                                                 width: dskLeftFlick.width; spacing: 10
-                                                Text { text: "DOCK STYLE & KEYS"; font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "DOCK STYLE & KEYS"; font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: themeHub.phoneInk }
 
                                                 // Dock Outer Pill Style
                                                 Row {
@@ -8529,10 +8771,11 @@ PanelWindow {
                                                         model: [{ id: "float", l: "FLOAT" }, { id: "capsule", l: "CAPSULE" }, { id: "transparent", l: "CLEAR" }]
                                                         delegate: Rectangle {
                                                             required property var modelData
+                                                            readonly property bool sel: themeHub.dockStyle === modelData.id
                                                             width: (parent.width - 16) / 3; height: 42; radius: 12
-                                                            color: themeHub.dockStyle === modelData.id ? themeHub.accentA : "#F1F5F9"
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentA : themeHub.phonePillBg
+                                                            border.width: 2.5; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setDockStyle(modelData.id) }
                                                         }
                                                     }
@@ -8551,9 +8794,9 @@ PanelWindow {
                                                             required property var modelData
                                                             readonly property bool sel: themeHub.dockIconShape === modelData.id
                                                             width: (parent.width - 16) / 3; height: 40; radius: 11
-                                                            color: sel ? themeHub.accentB : "#F1F5F9"
-                                                            border.width: sel ? 2.5 : 2; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentB : themeHub.phonePillBg
+                                                            border.width: sel ? 2.5 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setDockIconShape(modelData.id) }
                                                         }
                                                     }
@@ -8562,18 +8805,19 @@ PanelWindow {
                                                 // Dock Tile Size stepped slider (40..64)
                                                 Rectangle {
                                                     width: parent.width; height: 52; radius: 14
-                                                    color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Row {
                                                         anchors.fill: parent; anchors.margins: 9; spacing: 6
-                                                        Text { anchors.verticalCenter: parent.verticalCenter; text: "SIZE (" + themeHub.dockTileSize + "px)"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E"; width: 116 }
+                                                        Text { anchors.verticalCenter: parent.verticalCenter; text: "SIZE (" + themeHub.dockTileSize + "px)"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk; width: 116 }
                                                         Repeater {
                                                             model: [40, 44, 48, 52, 56, 60, 64]
                                                             delegate: Rectangle {
                                                                 required property int modelData
+                                                                readonly property bool sel: themeHub.dockTileSize === modelData
                                                                 width: 50; height: 34; radius: 9; anchors.verticalCenter: parent.verticalCenter
-                                                                color: themeHub.dockTileSize === modelData ? themeHub.accentB : "#FFFFFF"
-                                                                border.width: 2; border.color: "#1A1B2E"
-                                                                Text { anchors.centerIn: parent; text: String(modelData); font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                color: sel ? themeHub.accentB : themeHub.phoneCardBg
+                                                                border.width: 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                                Text { anchors.centerIn: parent; text: String(modelData); font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setDockTileSize(modelData) }
                                                             }
                                                         }
@@ -8582,8 +8826,8 @@ PanelWindow {
 
                                                 // Magnification toggle
                                                 Rectangle {
-                                                    width: parent.width; height: 46; radius: 13; color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
-                                                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "Dock Hover Magnification"; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                    width: parent.width; height: 46; radius: 13; color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "Dock Hover Magnification"; font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk }
                                                     Rectangle {
                                                         anchors.right: parent.right; anchors.rightMargin: 14; anchors.verticalCenter: parent.verticalCenter
                                                         width: 68; height: 28; radius: 14; color: themeHub.dockMagnify ? themeHub.accentA : "#CBD5E1"; border.width: 2; border.color: "#1A1B2E"
@@ -8606,9 +8850,9 @@ PanelWindow {
                                                             required property var modelData
                                                             readonly property bool sel: themeHub.dockEdge === modelData.id
                                                             width: (parent.width - 24) / 4; height: 40; radius: 10
-                                                            color: sel ? themeHub.accentA : "#F1F5F9"
-                                                            border.width: sel ? 2.5 : 2; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentA : themeHub.phonePillBg
+                                                            border.width: sel ? 2.5 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setDockEdge(modelData.id) }
                                                         }
                                                     }
@@ -8626,9 +8870,9 @@ PanelWindow {
                                                             required property var modelData
                                                             readonly property bool sel: themeHub.dockAutoHide === modelData.val
                                                             width: (parent.width - 8) * 0.5; height: 42; radius: 12
-                                                            color: sel ? themeHub.accentB : "#F8FAFC"
-                                                            border.width: sel ? 2.5 : 2; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: sel ? themeHub.accentB : themeHub.phoneSubBg
+                                                            border.width: sel ? 2.5 : 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: themeHub.setDockAutoHide(modelData.val) }
                                                         }
                                                     }
@@ -8650,9 +8894,9 @@ PanelWindow {
                                                         delegate: Rectangle {
                                                             required property var modelData
                                                             width: (parent.width - 24) / 4; height: 46; radius: 12
-                                                            color: modelData.val ? "#ECFDF5" : "#F8FAFC"
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: modelData.val ? (themeHub.phoneDarkMode ? "#17302A" : "#ECFDF5") : themeHub.phoneSubBg
+                                                            border.width: 2.5; border.color: themeHub.phoneBorder
+                                                            Text { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: modelData.l; font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneInk }
                                                             Rectangle {
                                                                 anchors.right: parent.right; anchors.rightMargin: 7; anchors.verticalCenter: parent.verticalCenter
                                                                 width: 44; height: 24; radius: 12; color: modelData.val ? themeHub.accentA : "#CBD5E1"; border.width: 2; border.color: "#1A1B2E"
@@ -8680,7 +8924,7 @@ PanelWindow {
                                     // Right: Widgets, Visualizer & Wallpaper Selector
                                     Rectangle {
                                         width: (parent.width - 24) * 0.5; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: dskRightFlick
                                             anchors.fill: parent; anchors.margins: 20
@@ -8689,7 +8933,7 @@ PanelWindow {
                                             Column {
                                                 id: dskRightCol
                                                 width: dskRightFlick.width; spacing: 12
-                                                Text { text: "WIDGETS, VISUALIZER & WALLPAPER"; font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "WIDGETS, VISUALIZER & WALLPAPER"; font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: themeHub.phoneInk }
 
                                                 // Desktop widgets grid (all 7 SekaiDesk widgets + "+ Photo" Polaroid adder)
                                                 Grid {
@@ -8711,9 +8955,9 @@ PanelWindow {
                                                             readonly property bool isPhoto: modelData.k === "__photo"
                                                             readonly property bool on: !isPhoto && themeHub.widgetVisible(modelData.k)
                                                             width: (parent.width - 24) / 4; height: 46; radius: 13
-                                                            color: isPhoto ? "#FFF1F2" : (widChip.on ? themeHub.accentA : "#F1F5F9")
-                                                            border.width: 2.5; border.color: "#1A1B2E"
-                                                            Text { anchors.centerIn: parent; text: isPhoto ? modelData.l : ((widChip.on ? "✓ " : "") + modelData.l); font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            color: isPhoto ? "#FFF1F2" : (widChip.on ? themeHub.accentA : themeHub.phonePillBg)
+                                                            border.width: 2.5; border.color: (isPhoto || widChip.on) ? "#1A1B2E" : themeHub.phoneBorder
+                                                            Text { anchors.centerIn: parent; text: isPhoto ? modelData.l : ((widChip.on ? "✓ " : "") + modelData.l); font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: (isPhoto || widChip.on) ? "#1A1B2E" : themeHub.phoneInk }
                                                             MouseArea {
                                                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                                 onClicked: {
@@ -8734,14 +8978,14 @@ PanelWindow {
 
                                                 // Visualizer toggle + all 11 styles (GPU shaders + Canvas)
                                                 Rectangle {
-                                                    width: parent.width; height: visInnerCol.implicitHeight + 24; radius: 16; color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                    width: parent.width; height: visInnerCol.implicitHeight + 24; radius: 16; color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Column {
                                                         id: visInnerCol
                                                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                                                         spacing: 10
                                                         Item {
                                                             width: parent.width; height: 30
-                                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "AUDIO VISUALIZER"; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E" }
+                                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "AUDIO VISUALIZER"; font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk }
                                                             Rectangle {
                                                                 anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                                                                 width: 74; height: 30; radius: 15; color: VisualizerService.enabled ? themeHub.accentA : "#CBD5E1"; border.width: 2; border.color: "#1A1B2E"
@@ -8755,10 +8999,11 @@ PanelWindow {
                                                                 model: ["tide", "ribbons", "aurora", "pulse", "scope", "mirror", "ring", "dots", "sekai", "bars", "wave"]
                                                                 delegate: Rectangle {
                                                                     required property string modelData
+                                                                    readonly property bool sel: VisualizerService.style === modelData
                                                                     width: (parent.width - 18) / 4; height: 40; radius: 10
-                                                                    color: VisualizerService.style === modelData ? themeHub.accentB : "#FFFFFF"
-                                                                    border.width: 2; border.color: "#1A1B2E"
-                                                                    Text { anchors.centerIn: parent; text: modelData.toUpperCase(); font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                    color: sel ? themeHub.accentB : themeHub.phoneCardBg
+                                                                    border.width: 2; border.color: sel ? "#1A1B2E" : themeHub.phoneBorder
+                                                                    Text { anchors.centerIn: parent; text: modelData.toUpperCase(); font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: sel ? "#1A1B2E" : themeHub.phoneInk }
                                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: VisualizerService.style = modelData }
                                                                 }
                                                             }
@@ -8781,13 +9026,13 @@ PanelWindow {
                                                 Row {
                                                     width: parent.width; spacing: 12
                                                     Rectangle {
-                                                        width: (parent.width - 12) * 0.5; height: 50; radius: 14; color: "#F1F5F9"; border.width: 2.5; border.color: "#1A1B2E"
-                                                        Text { anchors.centerIn: parent; text: "🎲 RANDOM WALLPAPER"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        width: (parent.width - 12) * 0.5; height: 50; radius: 14; color: themeHub.phonePillBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                        Text { anchors.centerIn: parent; text: "🎲 RANDOM WALLPAPER"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: WallpaperService.nextRandomWallpaper() }
                                                     }
                                                     Rectangle {
-                                                        width: (parent.width - 12) * 0.5; height: 50; radius: 14; color: "#F1F5F9"; border.width: 2.5; border.color: "#1A1B2E"
-                                                        Text { anchors.centerIn: parent; text: "🖼 PICK PROFILE AVATAR"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: "#1A1B2E" }
+                                                        width: (parent.width - 12) * 0.5; height: 50; radius: 14; color: themeHub.phonePillBg; border.width: 2.5; border.color: themeHub.phoneBorder
+                                                        Text { anchors.centerIn: parent; text: "🖼 PICK PROFILE AVATAR"; font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
                                                         MouseArea {
                                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                             onClicked: {
@@ -8812,7 +9057,7 @@ PanelWindow {
 
                                     Rectangle {
                                         width: (parent.width - 24) * 0.52; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: sysLeftFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8821,7 +9066,7 @@ PanelWindow {
                                             Column {
                                                 id: sysLeftCol
                                                 width: sysLeftFlick.width; spacing: 10
-                                                Text { text: "GLOBAL SHORTCUTS"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "GLOBAL SHORTCUTS"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
                                                 Repeater {
                                                     model: [
                                                         { keys: "ALT + SPACE",     desc: "Open Spotlight Search & PowerTools" },
@@ -8834,7 +9079,7 @@ PanelWindow {
                                                     ]
                                                     delegate: Rectangle {
                                                         required property var modelData
-                                                        width: parent.width; height: 54; radius: 14; color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                        width: parent.width; height: 54; radius: 14; color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                         Row {
                                                             anchors.fill: parent; anchors.margins: 10; spacing: 12
                                                             Rectangle {
@@ -8845,7 +9090,7 @@ PanelWindow {
                                                             Text {
                                                                 width: parent.width - 182; elide: Text.ElideRight
                                                                 anchors.verticalCenter: parent.verticalCenter; text: modelData.desc
-                                                                font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.DemiBold; color: "#1A1B2E"
+                                                                font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.DemiBold; color: themeHub.phoneInk
                                                             }
                                                         }
                                                     }
@@ -8856,7 +9101,7 @@ PanelWindow {
 
                                     Rectangle {
                                         width: (parent.width - 24) * 0.48; height: parent.height
-                                        radius: 24; color: "#FFFFFF"; border.width: 3.5; border.color: "#1A1B2E"
+                                        radius: 24; color: themeHub.phoneCardBg; border.width: 3.5; border.color: themeHub.phoneBorder
                                         Flickable {
                                             id: rightActionsFlick
                                             anchors.fill: parent; anchors.margins: 22
@@ -8869,15 +9114,15 @@ PanelWindow {
                                                 id: rightActionsCol
                                                 width: rightActionsFlick.width
                                                 spacing: 12
-                                                Text { text: "HARDWARE & ACTIONS"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: "#1A1B2E" }
+                                                Text { text: "HARDWARE & ACTIONS"; font.family: "Segoe UI"; font.pixelSize: 21; font.weight: Font.Black; color: themeHub.phoneInk }
                                                 Rectangle {
-                                                    width: parent.width; height: 142; radius: 18; color: "#F8FAFC"; border.width: 2.5; border.color: "#1A1B2E"
+                                                    width: parent.width; height: 142; radius: 18; color: themeHub.phoneSubBg; border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Column {
                                                         anchors.fill: parent; anchors.margins: 15; spacing: 6
-                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Machine: " + (WindowTracker.machineName || "Windows PC") + "  ·  User: " + (WindowTracker.userName || "User"); font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
-                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Uptime: " + (WindowTracker.uptimeText || "--"); font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#475569" }
-                                                        Text { width: parent.width; elide: Text.ElideRight; text: "CPU: " + WindowTracker.cpuUsage + "% (" + (WindowTracker.cpuTemp >= 0 ? WindowTracker.cpuTemp + "°C" : "--") + ")  ·  RAM: " + WindowTracker.ramUsage + "%"; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Bold; color: "#0F172A" }
-                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Display: " + themeHub.screenW + "×" + themeHub.screenH + "  ·  " + themeHub.currentBand.name; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Bold; color: "#0F172A" }
+                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Machine: " + (WindowTracker.machineName || "Windows PC") + "  ·  User: " + (WindowTracker.userName || "User"); font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Uptime: " + (WindowTracker.uptimeText || "--"); font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk }
+                                                        Text { width: parent.width; elide: Text.ElideRight; text: "CPU: " + WindowTracker.cpuUsage + "% (" + (WindowTracker.cpuTemp >= 0 ? WindowTracker.cpuTemp + "°C" : "--") + ")  ·  RAM: " + WindowTracker.ramUsage + "%"; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Bold; color: themeHub.phoneInk }
+                                                        Text { width: parent.width; elide: Text.ElideRight; text: "Display: " + themeHub.screenW + "×" + themeHub.screenH + "  ·  " + themeHub.currentBand.name; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Bold; color: themeHub.phoneInk }
                                                     }
                                                 }
                                                 Rectangle {
@@ -8885,8 +9130,8 @@ PanelWindow {
                                                     width: parent.width
                                                     height: gmCol.implicitHeight + 24
                                                     radius: 16
-                                                    color: GameModeService.active ? "#FFF1F2" : "#F8FAFC"
-                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: GameModeService.active ? (themeHub.phoneDarkMode ? "#2E151B" : "#FFF1F2") : themeHub.phoneSubBg
+                                                    border.width: 2.5; border.color: themeHub.phoneBorder
 
                                                     property bool runningPickerOpen: false
                                                     property var runningExes: []
@@ -8906,7 +9151,7 @@ PanelWindow {
                                                                 Text {
                                                                     width: parent.width; elide: Text.ElideRight
                                                                     text: "GAME MODE & PERFORMANCE"
-                                                                    font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk
                                                                 }
                                                                 Text {
                                                                     width: parent.width; elide: Text.ElideRight
@@ -8914,7 +9159,7 @@ PanelWindow {
                                                                         ? ("ACTIVE · " + (GameModeService.activeGameExe || "Manual"))
                                                                         : (GameModeService.autoDetect ? "AUTO READY" : "STANDBY")
                                                                     font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Bold
-                                                                    color: GameModeService.active ? "#BE123C" : (GameModeService.autoDetect ? "#047857" : "#475569")
+                                                                    color: GameModeService.active ? "#FB7185" : (GameModeService.autoDetect ? (themeHub.phoneDarkMode ? "#34D399" : "#047857") : themeHub.phoneMutedInk)
                                                                 }
                                                             }
                                                             Rectangle {
@@ -8946,15 +9191,15 @@ PanelWindow {
                                                         // Auto-Detect Toggle
                                                         Rectangle {
                                                             width: gmCol.width; height: 44; radius: 12
-                                                            color: GameModeService.autoDetect ? "#ECFDF5" : "#FFFFFF"
-                                                            border.width: 2; border.color: "#1A1B2E"
+                                                            color: GameModeService.autoDetect ? (themeHub.phoneDarkMode ? "#17302A" : "#ECFDF5") : themeHub.phoneCardBg
+                                                            border.width: 2; border.color: themeHub.phoneBorder
                                                             Row {
                                                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
                                                                 Text {
                                                                     width: Math.max(80, gmCol.width - 92)
                                                                     anchors.verticalCenter: parent.verticalCenter
                                                                     text: "AUTO-DETECT GAMES"
-                                                                    font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Bold; color: "#1A1B2E"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Bold; color: themeHub.phoneInk
                                                                 }
                                                                 Rectangle {
                                                                     anchors.verticalCenter: parent.verticalCenter
@@ -9009,7 +9254,7 @@ PanelWindow {
                                                                 text: GameModeService.mode === "zero"
                                                                     ? "Exits GUI into pure-Win32 --wait-game (~2MB, 0% CPU/VRAM) until game closes."
                                                                     : "Hides all overlays, pauses workers, sets Win11 EcoQoS & trims RAM/VRAM instantly."
-                                                                font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#475569"
+                                                                font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                             }
                                                         }
 
@@ -9017,15 +9262,15 @@ PanelWindow {
                                                         Rectangle {
                                                             visible: GameModeService.mode === "zero"
                                                             width: gmCol.width; height: 42; radius: 12
-                                                            color: GameModeService.restoreTaskbarInZero ? "#EFF6FF" : "#FFFFFF"
-                                                            border.width: 2; border.color: "#1A1B2E"
+                                                            color: GameModeService.restoreTaskbarInZero ? (themeHub.phoneDarkMode ? "#17253B" : "#EFF6FF") : themeHub.phoneCardBg
+                                                            border.width: 2; border.color: themeHub.phoneBorder
                                                             Row {
                                                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
                                                                 Text {
                                                                     width: Math.max(80, gmCol.width - 92)
                                                                     anchors.verticalCenter: parent.verticalCenter
                                                                     text: "RESTORE TASKBAR IN ZERO MODE"
-                                                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Bold; color: "#1A1B2E"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.Bold; color: themeHub.phoneInk
                                                                 }
                                                                 Rectangle {
                                                                     anchors.verticalCenter: parent.verticalCenter
@@ -9052,7 +9297,7 @@ PanelWindow {
                                                                 width: Math.max(60, gmCol.width - 250)
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "GAME LIST (" + GameModeService.gameList.length + ")"
-                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneInk
                                                             }
                                                             Rectangle {
                                                                 width: 96; height: 28; radius: 8
@@ -9158,7 +9403,10 @@ PanelWindow {
                                                                     MouseArea {
                                                                         id: gChipMa
                                                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                                        onClicked: GameModeService.removeGameExe(modelData)
+                                                                        onClicked: {
+                                                                            const exe = modelData
+                                                                            Qt.callLater(function() { GameModeService.removeGameExe(exe) })
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -9171,7 +9419,7 @@ PanelWindow {
                                                                 width: Math.max(60, gmCol.width - 74)
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "EXCLUDE LIST (" + GameModeService.excludeList.length + ")"
-                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneInk
                                                             }
                                                             Rectangle {
                                                                 width: 68; height: 28; radius: 8
@@ -9211,7 +9459,10 @@ PanelWindow {
                                                                     MouseArea {
                                                                         id: exChipMa
                                                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                                        onClicked: GameModeService.removeExcludeExe(modelData)
+                                                                        onClicked: {
+                                                                            const exe = modelData
+                                                                            Qt.callLater(function() { GameModeService.removeExcludeExe(exe) })
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -9271,8 +9522,8 @@ PanelWindow {
                                                 }
                                                 Rectangle {
                                                     width: parent.width; height: 118; radius: 16
-                                                    color: TaskbarManager.active ? "#ECFDF5" : "#F8FAFC"
-                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: TaskbarManager.active ? (themeHub.phoneDarkMode ? "#17302A" : "#ECFDF5") : themeHub.phoneSubBg
+                                                    border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Column {
                                                         anchors.fill: parent; anchors.margins: 12; spacing: 10
                                                         Row {
@@ -9287,12 +9538,12 @@ PanelWindow {
                                                                     Text {
                                                                         anchors.verticalCenter: parent.verticalCenter
                                                                         text: "HIDE WINDOWS TASKBAR"
-                                                                        font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk
                                                                     }
                                                                 }
                                                                 Text {
                                                                     text: TaskbarManager.statusText
-                                                                    font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#475569"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                                     elide: Text.ElideRight; width: parent.width
                                                                 }
                                                             }
@@ -9341,8 +9592,8 @@ PanelWindow {
                                                     width: parent.width
                                                     height: ramCardCol.implicitHeight + 24
                                                     radius: 16
-                                                    color: RamCleanerService.autoEnabled ? "#F0FDF4" : "#F8FAFC"
-                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: RamCleanerService.autoEnabled ? (themeHub.phoneDarkMode ? "#17302A" : "#F0FDF4") : themeHub.phoneSubBg
+                                                    border.width: 2.5; border.color: themeHub.phoneBorder
 
                                                     Column {
                                                         id: ramCardCol
@@ -9362,12 +9613,12 @@ PanelWindow {
                                                                     Text {
                                                                         anchors.verticalCenter: parent.verticalCenter
                                                                         text: "AUTO CLEAN RAM (STUTTER-FREE)"
-                                                                        font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk
                                                                     }
                                                                 }
                                                                 Text {
                                                                     text: "Priority-0 Standby only · Zero game stutter"
-                                                                    font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: "#475569"
+                                                                    font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: themeHub.phoneMutedInk
                                                                 }
                                                             }
                                                             Rectangle {
@@ -9389,7 +9640,7 @@ PanelWindow {
                                                             Text {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "TRIGGER"
-                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#475569"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: themeHub.phoneMutedInk
                                                             }
                                                             Repeater {
                                                                 model: [70, 75, 80, 85]
@@ -9406,7 +9657,7 @@ PanelWindow {
                                                             Text {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "EVERY"
-                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: "#475569"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black; color: themeHub.phoneMutedInk
                                                             }
                                                             Repeater {
                                                                 model: [
@@ -9448,15 +9699,15 @@ PanelWindow {
                                                                 text: RamCleanerService.lastResultText !== ""
                                                                       ? RamCleanerService.lastResultText
                                                                       : "WorkingSets + Modified + Standby"
-                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: "#475569"
+                                                                font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Bold; color: themeHub.phoneMutedInk
                                                             }
                                                         }
                                                     }
                                                 }
                                                 Rectangle {
                                                     width: parent.width; height: 54; radius: 16
-                                                    color: SystemControl.launchAtStartup ? "#ECFDF5" : "#F8FAFC"
-                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                    color: SystemControl.launchAtStartup ? (themeHub.phoneDarkMode ? "#17302A" : "#ECFDF5") : themeHub.phoneSubBg
+                                                    border.width: 2.5; border.color: themeHub.phoneBorder
                                                     Row {
                                                         anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 14; spacing: 10
                                                         Row {
@@ -9467,7 +9718,7 @@ PanelWindow {
                                                             Text {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "START WITH WINDOWS"
-                                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: "#1A1B2E"
+                                                                font.family: "Segoe UI"; font.pixelSize: 16; font.weight: Font.Black; color: themeHub.phoneInk
                                                             }
                                                         }
                                                         Rectangle {
@@ -9733,9 +9984,9 @@ PanelWindow {
                                                 width: (parent.width - 20) * 0.52
                                                 height: parent.height
                                                 radius: 24
-                                                color: "#FFFFFF"
+                                                color: themeHub.phoneCardBg
                                                 border.width: 3.5
-                                                border.color: "#1A1B2E"
+                                                border.color: themeHub.phoneBorder
 
                                                 Flickable {
                                                     id: abtLeftFlick
@@ -9759,7 +10010,7 @@ PanelWindow {
                                                             Text {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 text: "WINDOWS PORT & CUSTOM STUDIO"
-                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Bold; color: "#64748B"
+                                                                font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Bold; color: themeHub.phoneMutedInk
                                                             }
                                                         }
 
@@ -9772,7 +10023,7 @@ PanelWindow {
                                                                 width: 64; height: 64
                                                                 Rectangle {
                                                                     anchors.fill: parent; radius: 32
-                                                                    color: "#F1F5F9"
+                                                                    color: themeHub.phonePillBg
                                                                 }
                                                                 Image {
                                                                     anchors.fill: parent
@@ -9785,7 +10036,7 @@ PanelWindow {
                                                                 }
                                                                 Rectangle {
                                                                     anchors.fill: parent; radius: 32
-                                                                    color: "transparent"; border.width: 3; border.color: "#1A1B2E"
+                                                                    color: "transparent"; border.width: 3; border.color: themeHub.phoneBorder
                                                                     antialiasing: true
                                                                 }
                                                             }
@@ -9799,7 +10050,7 @@ PanelWindow {
                                                                     Text {
                                                                         anchors.verticalCenter: parent.verticalCenter
                                                                         text: "Yuukitake"
-                                                                        font.family: "Segoe UI"; font.pixelSize: 22; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        font.family: "Segoe UI"; font.pixelSize: 22; font.weight: Font.Black; color: themeHub.phoneInk
                                                                     }
                                                                     Rectangle {
                                                                         anchors.verticalCenter: parent.verticalCenter
@@ -9812,25 +10063,25 @@ PanelWindow {
                                                                     width: parent.width
                                                                     elide: Text.ElideRight
                                                                     text: "Windows Desktop Port, C++ Win32 & QML Craft"
-                                                                    font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Bold; color: "#334155"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 15; font.weight: Font.Bold; color: themeHub.phoneInk
                                                                 }
                                                                 Text {
                                                                     width: parent.width
                                                                     elide: Text.ElideRight
                                                                     text: "Inspired by SekaiPop (Hyprland) · Aesthetic Pop-Comic Shell"
-                                                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#64748B"
+                                                                    font.family: "Segoe UI"; font.pixelSize: 14; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                                                                 }
                                                             }
                                                         }
 
-                                                        // Handwritten Signature Box
+                                                        // Handwritten Signature Box (keep warm white paper so dark ink signature stays crisp)
                                                         Rectangle {
                                                             width: parent.width
                                                             height: Math.max(118, abtLeftFlick.height - 154)
                                                             radius: 18
                                                             color: "#FFFDF7"
                                                             border.width: 2.5
-                                                            border.color: "#1A1B2E"
+                                                            border.color: themeHub.phoneBorder
                                                             clip: true
 
                                                             Text {
@@ -9870,9 +10121,9 @@ PanelWindow {
                                                 width: (parent.width - 20) * 0.48
                                                 height: parent.height
                                                 radius: 24
-                                                color: "#FFFFFF"
+                                                color: themeHub.phoneCardBg
                                                 border.width: 3.5
-                                                border.color: "#1A1B2E"
+                                                border.color: themeHub.phoneBorder
 
                                                 Flickable {
                                                     id: abtRightFlick
@@ -9886,8 +10137,44 @@ PanelWindow {
                                                         spacing: 14
 
                                                         Text {
+                                                            text: "SYSTEM SPECS"
+                                                            font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: themeHub.phoneInk
+                                                        }
+
+                                                        Grid {
+                                                            width: parent.width
+                                                            columns: 2
+                                                            columnSpacing: 12
+                                                            rowSpacing: 12
+                                                            Repeater {
+                                                                model: [
+                                                                    { k: "CPU", v: WindowTracker.cpuSpec },
+                                                                    { k: "GPU", v: WindowTracker.gpuSpec },
+                                                                    { k: "RAM", v: WindowTracker.ramSpec },
+                                                                    { k: "OS",  v: WindowTracker.osSpec }
+                                                                ]
+                                                                delegate: Rectangle {
+                                                                    required property var modelData
+                                                                    width: (parent.width - 12) * 0.5
+                                                                    height: 68
+                                                                    radius: 14
+                                                                    color: themeHub.phoneSubBg
+                                                                    border.width: 2.5
+                                                                    border.color: themeHub.phoneBorder
+                                                                    Column {
+                                                                        anchors.centerIn: parent
+                                                                        width: parent.width - 18
+                                                                        spacing: 2
+                                                                        Text { text: modelData.k; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneMutedInk }
+                                                                        Text { width: parent.width; elide: Text.ElideRight; text: modelData.v; font.family: "Consolas"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Text {
                                                             text: "ACTIVE SHELL & STACK"
-                                                            font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: "#1A1B2E"
+                                                            font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: themeHub.phoneInk
                                                         }
 
                                                         Grid {
@@ -9907,15 +10194,15 @@ PanelWindow {
                                                                     width: (parent.width - 12) * 0.5
                                                                     height: 68
                                                                     radius: 14
-                                                                    color: "#F8FAFC"
+                                                                    color: themeHub.phoneSubBg
                                                                     border.width: 2.5
-                                                                    border.color: "#1A1B2E"
+                                                                    border.color: themeHub.phoneBorder
                                                                     Column {
                                                                         anchors.centerIn: parent
                                                                         width: parent.width - 18
                                                                         spacing: 2
-                                                                        Text { text: modelData.k; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#64748B" }
-                                                                        Text { width: parent.width; elide: Text.ElideRight; text: modelData.v; font.family: "Consolas"; font.pixelSize: 15; font.weight: Font.Black; color: "#1A1B2E" }
+                                                                        Text { text: modelData.k; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneMutedInk }
+                                                                        Text { width: parent.width; elide: Text.ElideRight; text: modelData.v; font.family: "Consolas"; font.pixelSize: 15; font.weight: Font.Black; color: themeHub.phoneInk }
                                                                     }
                                                                 }
                                                             }
@@ -9925,9 +10212,9 @@ PanelWindow {
                                                             width: parent.width
                                                             height: abtUpdCol.implicitHeight + 24
                                                             radius: 16
-                                                            color: UpdateService.updateAvailable ? "#FEF9C3" : "#F8FAFC"
+                                                            color: UpdateService.updateAvailable ? (themeHub.phoneDarkMode ? "#302814" : "#FEF9C3") : themeHub.phoneSubBg
                                                             border.width: 2.5
-                                                            border.color: "#1A1B2E"
+                                                            border.color: themeHub.phoneBorder
 
                                                             Column {
                                                                 id: abtUpdCol
@@ -9942,18 +10229,18 @@ PanelWindow {
                                                                     Text {
                                                                         text: "AUTO UPDATER"
                                                                         anchors.verticalCenter: parent.verticalCenter
-                                                                        font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneInk
                                                                     }
 
                                                                     Rectangle {
                                                                         anchors.verticalCenter: parent.verticalCenter
                                                                         width: abtUpdVerTxt.implicitWidth + 14; height: 22; radius: 11
-                                                                        color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
+                                                                        color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.phoneBorder
                                                                         Text {
                                                                             id: abtUpdVerTxt
                                                                             anchors.centerIn: parent
                                                                             text: "v" + UpdateService.currentVersion + " · " + (UpdateService.isInstallerInstall ? "INSTALLER" : "PORTABLE")
-                                                                            font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E"
+                                                                            font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: themeHub.phoneInk
                                                                         }
                                                                     }
                                                                 }
@@ -9965,13 +10252,13 @@ PanelWindow {
                                                                           ? ("Downloading v" + UpdateService.latestVersion + " · " + Math.round(UpdateService.downloadProgress * 100) + "%")
                                                                           : UpdateService.statusText
                                                                     font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold
-                                                                    color: UpdateService.status === "error" ? "#E11D48" : "#334155"
+                                                                    color: UpdateService.status === "error" ? "#FB7185" : themeHub.phoneMutedInk
                                                                 }
 
                                                                 Rectangle {
                                                                     visible: UpdateService.status === "downloading" || UpdateService.status === "verifying" || UpdateService.status === "installing"
                                                                     width: parent.width; height: 12; radius: 6
-                                                                    color: "#FFFFFF"; border.width: 2; border.color: "#1A1B2E"
+                                                                    color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.phoneBorder
                                                                     clip: true
                                                                     Rectangle {
                                                                         height: parent.height
@@ -9984,8 +10271,8 @@ PanelWindow {
                                                                     width: parent.width; height: 34; radius: 12
                                                                     color: UpdateService.updateAvailable
                                                                            ? (abtUpdMa.containsMouse ? "#4ADE80" : themeHub.accentA)
-                                                                           : (abtUpdMa.containsMouse ? themeHub.accentB : "#FFFFFF")
-                                                                    border.width: 2.5; border.color: "#1A1B2E"
+                                                                           : (abtUpdMa.containsMouse ? themeHub.accentB : themeHub.phoneCardBg)
+                                                                    border.width: 2.5; border.color: (UpdateService.updateAvailable || abtUpdMa.containsMouse) ? "#1A1B2E" : themeHub.phoneBorder
                                                                     Text {
                                                                         anchors.centerIn: parent
                                                                         text: {
@@ -9996,7 +10283,8 @@ PanelWindow {
                                                                             if (UpdateService.updateAvailable) return "UPDATE TO v" + UpdateService.latestVersion + " & RESTART"
                                                                             return "CHECK FOR UPDATES"
                                                                         }
-                                                                        font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black; color: "#1A1B2E"
+                                                                        font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black
+                                                                        color: (UpdateService.updateAvailable || abtUpdMa.containsMouse) ? "#1A1B2E" : themeHub.phoneInk
                                                                     }
                                                                     MouseArea {
                                                                         id: abtUpdMa
@@ -10015,7 +10303,7 @@ PanelWindow {
 
                                                         Text {
                                                             text: "ENGINE & TECHNOLOGIES"
-                                                            font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: "#64748B"
+                                                            font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Black; color: themeHub.phoneMutedInk
                                                         }
 
                                                         Flow {
@@ -10026,8 +10314,8 @@ PanelWindow {
                                                                 delegate: Rectangle {
                                                                     required property string modelData
                                                                     width: abtTechTxt.implicitWidth + 20; height: 30; radius: 15
-                                                                    color: "#F8FAFC"; border.width: 2; border.color: "#1A1B2E"
-                                                                    Text { id: abtTechTxt; anchors.centerIn: parent; text: modelData; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Bold; color: "#1A1B2E" }
+                                                                    color: themeHub.phoneSubBg; border.width: 2; border.color: themeHub.phoneBorder
+                                                                    Text { id: abtTechTxt; anchors.centerIn: parent; text: modelData; font.family: "Consolas"; font.pixelSize: 13; font.weight: Font.Bold; color: themeHub.phoneInk }
                                                                 }
                                                             }
                                                         }
@@ -10385,14 +10673,16 @@ PanelWindow {
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             cursorShape: Qt.PointingHandCursor
                             onClicked: mouse => {
-                                if (mouse.button === Qt.RightButton) {
-                                    notifPeekWindow.dismissPopupAt(index)
-                                } else {
-                                    notifPeekWindow.dismissPopupAt(index)
-                                    quickPanelWindow.bottomTab = "notifications"
-                                    topBarWindow.quickPanelOpen = true
-                                    NotificationService.refresh()
-                                }
+                                const i = index
+                                const isRight = (mouse.button === Qt.RightButton)
+                                Qt.callLater(function() {
+                                    notifPeekWindow.dismissPopupAt(i)
+                                    if (!isRight) {
+                                        quickPanelWindow.bottomTab = "notifications"
+                                        topBarWindow.quickPanelOpen = true
+                                        NotificationService.refresh()
+                                    }
+                                })
                             }
                         }
 
@@ -10406,7 +10696,10 @@ PanelWindow {
                             MouseArea {
                                 id: stCloseMa
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: notifPeekWindow.dismissPopupAt(index)
+                                onClicked: {
+                                    const i = index
+                                    Qt.callLater(function() { notifPeekWindow.dismissPopupAt(i) })
+                                }
                             }
                         }
                     }
@@ -10538,6 +10831,133 @@ PanelWindow {
                         id: updCloseMa
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: UpdateService.dismissToast()
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // Low-Battery Warning Alert Toast (<=20% warning, <=10% critical)
+    // =========================================================================
+    PanelWindow {
+        id: lowBatteryToastWindow
+        property bool alertOpen: false
+        property int alertPercent: 20
+        property bool alertCritical: false
+
+        visible: alertOpen && (!GameModeService.active || alertCritical)
+        clickThrough: false
+        color: "transparent"
+
+        width: 348
+        height: 96
+        x: Math.max(0, themeHub.screenW - width - 16)
+        y: updateToastWindow.visible
+           ? (updateToastWindow.y + updateToastWindow.height + 8)
+           : (notifPeekWindow.visible ? (notifPeekWindow.y + notifPeekWindow.height + 8) : 42)
+        mask: [{ x: 0, y: 0, width: width, height: height }]
+
+        Component.onCompleted: Qt.callLater(function() { WindowTracker.checkLowBatteryAlert() })
+
+        Timer {
+            id: lowBattAutoHideTimer
+            interval: 12000
+            onTriggered: if (!lowBatteryToastWindow.alertCritical) lowBatteryToastWindow.alertOpen = false
+        }
+
+        Connections {
+            target: WindowTracker
+            function onLowBatteryAlert(percent, critical) {
+                lowBatteryToastWindow.alertPercent = percent
+                lowBatteryToastWindow.alertCritical = critical
+                lowBatteryToastWindow.alertOpen = true
+                if (!critical)
+                    lowBattAutoHideTimer.restart()
+                else
+                    lowBattAutoHideTimer.stop()
+            }
+            function onStatsChanged() {
+                if (!WindowTracker.hasBattery || WindowTracker.batteryCharging || WindowTracker.batteryPercent > 25)
+                    lowBatteryToastWindow.alertOpen = false
+            }
+        }
+
+        Item {
+            anchors.fill: parent
+
+            Rectangle {
+                x: 4; y: 4
+                width: parent.width - 4; height: parent.height - 4
+                radius: 18
+                color: "#1A1B2E"
+            }
+
+            Rectangle {
+                id: lowBattCard
+                x: 0; y: 0
+                width: parent.width - 4; height: parent.height - 4
+                radius: 18
+                color: themeHub.phoneCardBg
+                border.width: 3
+                border.color: lowBatteryToastWindow.alertCritical ? "#E11D48" : themeHub.phoneBorder
+                antialiasing: true
+
+                Rectangle {
+                    id: lowBattBadge
+                    x: 12; anchors.verticalCenter: parent.verticalCenter
+                    width: 40; height: 40; radius: 12
+                    color: lowBatteryToastWindow.alertCritical ? "#FB7185" : "#FACC15"
+                    border.width: 2.5; border.color: "#1A1B2E"
+                    Text {
+                        anchors.centerIn: parent
+                        text: lowBatteryToastWindow.alertCritical ? "!" : "⚡"
+                        font.family: "Segoe UI"; font.pixelSize: 20; font.weight: Font.Black; color: "#1A1B2E"
+                    }
+                }
+
+                Column {
+                    anchors.left: lowBattBadge.right; anchors.leftMargin: 12
+                    anchors.right: parent.right; anchors.rightMargin: 38
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: (lowBatteryToastWindow.alertCritical ? "CRITICAL BATTERY · " : "LOW BATTERY · ") + lowBatteryToastWindow.alertPercent + "%"
+                        font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.Black
+                        color: lowBatteryToastWindow.alertCritical ? "#FB7185" : themeHub.phoneInk
+                    }
+
+                    Text {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: (WindowTracker.batteryTimeText !== "" ? (WindowTracker.batteryTimeText + " · ") : "") + "Plug in charger"
+                        font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.DemiBold
+                        color: themeHub.phoneMutedInk
+                    }
+                }
+
+                MouseArea {
+                    id: lowBattToastMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: SystemControl.openSettings("ms-settings:powersleep")
+                }
+
+                Rectangle {
+                    anchors.right: parent.right; anchors.rightMargin: 10
+                    anchors.top: parent.top; anchors.topMargin: 8
+                    width: 24; height: 24; radius: 12
+                    color: lowBattCloseMa.containsMouse ? "#FB7185" : themeHub.phonePillBg
+                    border.width: 2; border.color: themeHub.phoneBorder
+                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 14; font.weight: Font.Black; color: themeHub.phoneInk }
+                    MouseArea {
+                        id: lowBattCloseMa
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: lowBatteryToastWindow.alertOpen = false
                     }
                 }
             }
@@ -11019,8 +11439,9 @@ PanelWindow {
 
         readonly property int cardShadow: 4
         property double openedAt: 0
+        property string passwordSsid: ""
 
-        width: 268 + cardShadow
+        width: 288 + cardShadow
         height: wifiCol.implicitHeight + 24 + cardShadow
         x: topBarWindow.barPopupX(width, (topBarWindow.anchors.margins.left + topBarWindow.width) - width - 6)
         y: topBarWindow.barPopupY(height, themeHub.screenH - height - 80)
@@ -11028,9 +11449,12 @@ PanelWindow {
         onVisibleChanged: {
             if (visible) {
                 openedAt = Date.now()
+                passwordSsid = ""
                 SystemControl.refresh()
                 SystemControl.refreshWifi()
                 focusActivate()
+            } else {
+                passwordSsid = ""
             }
         }
 
@@ -11061,9 +11485,9 @@ PanelWindow {
             width: wifiPopupWindow.width - wifiPopupWindow.cardShadow
             height: wifiPopupWindow.height - wifiPopupWindow.cardShadow
             radius: 16
-            color: "#F8FAFC"
+            color: themeHub.phoneScreenBg
             border.width: 2
-            border.color: "#1A1B2E"
+            border.color: themeHub.phoneBorder
 
             Column {
                 id: wifiCol
@@ -11076,9 +11500,9 @@ PanelWindow {
                     width: parent.width
                     height: 44
                     radius: 12
-                    color: "#FFFFFF"
+                    color: themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: themeHub.phoneBorder
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         x: 10
@@ -11092,7 +11516,9 @@ PanelWindow {
                                 sourceSize.width: 28
                                 sourceSize.height: 28
                                 smooth: true
-                                source: SystemControl.networkType === "Wi-Fi" ? "qrc:/qml/icons/wifi-dark.svg" : "qrc:/qml/icons/network-dark.svg"
+                                source: SystemControl.networkType === "Wi-Fi"
+                                    ? (themeHub.phoneDarkMode ? "qrc:/qml/icons/wifi-light.svg" : "qrc:/qml/icons/wifi-dark.svg")
+                                    : (themeHub.phoneDarkMode ? "qrc:/qml/icons/network-light.svg" : "qrc:/qml/icons/network-dark.svg")
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -11100,14 +11526,14 @@ PanelWindow {
                                 font.family: "Segoe UI"
                                 font.pixelSize: 12
                                 font.weight: Font.Bold
-                                color: "#1A1B2E"
+                                color: themeHub.phoneInk
                             }
                         }
                         Text {
                             text: SystemControl.localIp ? SystemControl.localIp : "No IPv4 address"
                             font.family: "Consolas"
                             font.pixelSize: 10
-                            color: "#64748B"
+                            color: themeHub.phoneMutedInk
                         }
                     }
                 }
@@ -11116,9 +11542,9 @@ PanelWindow {
                     width: parent.width
                     height: 36
                     radius: 12
-                    color: "#FFFFFF"
+                    color: themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: themeHub.phoneBorder
 
                     Text {
                         x: 10
@@ -11127,7 +11553,7 @@ PanelWindow {
                         font.family: "Segoe UI"
                         font.pixelSize: 12
                         font.weight: Font.Bold
-                        color: "#1A1B2E"
+                        color: themeHub.phoneInk
                     }
 
                     Rectangle {
@@ -11160,6 +11586,72 @@ PanelWindow {
                     }
                 }
 
+                Text {
+                    visible: SystemControl.wifiStatusText !== ""
+                    width: parent.width; elide: Text.ElideRight
+                    text: SystemControl.wifiStatusText
+                    font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Bold; color: themeHub.accentA
+                }
+
+                // Inline Password Input Card for unsecured/unprofiled Wi-Fi
+                Rectangle {
+                    visible: SystemControl.wifiEnabled && wifiPopupWindow.passwordSsid !== ""
+                    width: parent.width; height: 74; radius: 11
+                    color: themeHub.phoneCardBg; border.width: 2; border.color: themeHub.accentA
+                    Column {
+                        anchors.fill: parent; anchors.margins: 7; spacing: 5
+                        Text {
+                            width: parent.width; elide: Text.ElideRight
+                            text: "🔒 Password · " + wifiPopupWindow.passwordSsid
+                            font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: themeHub.phoneInk
+                        }
+                        Row {
+                            width: parent.width; height: 26; spacing: 5
+                            Rectangle {
+                                width: parent.width - 104; height: 26; radius: 7
+                                color: themeHub.phoneSubBg; border.width: 1.5; border.color: themeHub.phoneBorder; clip: true
+                                TextInput {
+                                    id: wifiPwInput
+                                    anchors.fill: parent; anchors.margins: 5
+                                    verticalAlignment: Text.AlignVCenter
+                                    echoMode: TextInput.Password
+                                    font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: themeHub.phoneInk
+                                    selectByMouse: true
+                                    onAccepted: {
+                                        const target = wifiPopupWindow.passwordSsid
+                                        const pw = text
+                                        wifiPopupWindow.passwordSsid = ""
+                                        text = ""
+                                        SystemControl.connectWifiWithPassword(target, pw)
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: 54; height: 26; radius: 7; color: themeHub.accentA; border.width: 1.5; border.color: "#1A1B2E"
+                                Text { anchors.centerIn: parent; text: "Join"; font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#1A1B2E" }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        const target = wifiPopupWindow.passwordSsid
+                                        const pw = wifiPwInput.text
+                                        wifiPopupWindow.passwordSsid = ""
+                                        wifiPwInput.text = ""
+                                        SystemControl.connectWifiWithPassword(target, pw)
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: 40; height: 26; radius: 7; color: themeHub.phonePillBg; border.width: 1.5; border.color: themeHub.phoneBorder
+                                Text { anchors.centerIn: parent; text: "×"; font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: themeHub.phoneInk }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { wifiPopupWindow.passwordSsid = ""; wifiPwInput.text = "" }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Flickable {
                     visible: SystemControl.wifiSupported && SystemControl.wifiEnabled
                     width: parent.width
@@ -11174,26 +11666,29 @@ PanelWindow {
                         spacing: 4
                         Text {
                             visible: SystemControl.wifiNetworks.length === 0
-                            text: "Scanning networks..."
+                            text: SystemControl.wifiScanning ? "Scanning networks..." : "No networks found"
                             font.family: "Segoe UI"
                             font.pixelSize: 11
-                            color: "#64748B"
+                            color: themeHub.phoneMutedInk
                         }
                         Repeater {
                             model: SystemControl.wifiNetworks
                             delegate: Rectangle {
                                 required property var modelData
+                                readonly property bool isConnecting: SystemControl.wifiConnectingSsid !== "" && (SystemControl.wifiConnectingSsid === modelData.ssid || SystemControl.wifiConnectingSsid === modelData.profile)
+                                readonly property bool isKnown: (modelData.profile && modelData.profile !== "") || !modelData.secured
+                                readonly property bool canForget: !!(modelData.profile && modelData.profile !== "")
                                 width: wifiNetCol.width
                                 height: 28
                                 radius: 9
-                                color: modelData.connected ? themeHub.accentB : (wnMouse.containsMouse ? "#E0F2FE" : "#FFFFFF")
+                                color: modelData.connected ? themeHub.accentB : (isConnecting ? "#FEF3C7" : (wnMouse.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg))
                                 border.width: 1.5
-                                border.color: "#1A1B2E"
+                                border.color: (modelData.connected || isConnecting || wnMouse.containsMouse) ? "#1A1B2E" : themeHub.phoneBorder
 
                                 Row {
                                     x: 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 54
+                                    width: parent.width - (canForget ? 104 : 78)
                                     spacing: 6
                                     Image {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -11202,34 +11697,67 @@ PanelWindow {
                                         sourceSize.width: 24
                                         sourceSize.height: 24
                                         smooth: true
-                                        source: "qrc:/qml/icons/wifi-dark.svg"
+                                        source: (!modelData.connected && !isConnecting && !wnMouse.containsMouse && themeHub.phoneDarkMode)
+                                            ? "qrc:/qml/icons/wifi-light.svg"
+                                            : "qrc:/qml/icons/wifi-dark.svg"
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width - 18
                                         elide: Text.ElideRight
-                                        text: (modelData.connected ? "✓ " : "") + modelData.ssid
+                                        text: (modelData.connected ? "✓ " : (modelData.secured && !isKnown ? "🔒 " : "")) + modelData.ssid
                                         font.family: "Segoe UI"
                                         font.pixelSize: 11
-                                        font.weight: modelData.connected ? Font.Bold : Font.Medium
-                                        color: "#1A1B2E"
+                                        font.weight: (modelData.connected || isConnecting) ? Font.Bold : Font.Medium
+                                        color: (modelData.connected || isConnecting || wnMouse.containsMouse) ? "#1A1B2E" : themeHub.phoneInk
                                     }
                                 }
                                 Text {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 8
+                                    anchors.right: canForget ? wifiFgtBtn.left : parent.right
+                                    anchors.rightMargin: canForget ? 6 : 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.signal + "%"
+                                    text: isConnecting ? "Connecting..." : (modelData.signal + "%")
                                     font.family: "Consolas"
                                     font.pixelSize: 10
-                                    color: "#475569"
+                                    color: (modelData.connected || isConnecting || wnMouse.containsMouse) ? "#1A1B2E" : themeHub.phoneMutedInk
                                 }
                                 MouseArea {
                                     id: wnMouse
                                     anchors.fill: parent
+                                    anchors.rightMargin: canForget ? 26 : 0
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SystemControl.connectWifi(modelData.profile || modelData.ssid)
+                                    onClicked: {
+                                        if (modelData.connected)
+                                            return
+                                        if (isKnown) {
+                                            const prof = modelData.profile || modelData.ssid
+                                            wifiPopupWindow.passwordSsid = ""
+                                            Qt.callLater(function() { SystemControl.connectWifi(prof) })
+                                        } else {
+                                            wifiPopupWindow.passwordSsid = modelData.ssid
+                                            wifiPwInput.text = ""
+                                            wifiPwInput.forceActiveFocus()
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    id: wifiFgtBtn
+                                    visible: canForget
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 5
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 18; height: 18; radius: 6
+                                    color: wifiFgtMa.containsMouse ? "#FB7185" : themeHub.phonePillBg
+                                    border.width: 1; border.color: "#1A1B2E"
+                                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 11; font.weight: Font.Black; color: wifiFgtMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
+                                    MouseArea {
+                                        id: wifiFgtMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            const prof = modelData.profile
+                                            Qt.callLater(function() { SystemControl.forgetWifi(prof) })
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -11240,16 +11768,16 @@ PanelWindow {
                     width: parent.width
                     height: 28
                     radius: 10
-                    color: netSetMouse.containsMouse ? "#E0F2FE" : "#FFFFFF"
+                    color: netSetMouse.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: netSetMouse.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                     Text {
                         anchors.centerIn: parent
                         text: "Network Settings"
                         font.family: "Segoe UI"
                         font.pixelSize: 11
                         font.weight: Font.Bold
-                        color: "#1A1B2E"
+                        color: netSetMouse.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                     }
                     MouseArea {
                         id: netSetMouse
@@ -11278,7 +11806,7 @@ PanelWindow {
         readonly property int cardShadow: 4
         property double openedAt: 0
 
-        width: 256 + cardShadow
+        width: 276 + cardShadow
         height: btCol.implicitHeight + 24 + cardShadow
         x: topBarWindow.barPopupX(width, (topBarWindow.anchors.margins.left + topBarWindow.width) - width - 6)
         y: topBarWindow.barPopupY(height, themeHub.screenH - height - 80)
@@ -11318,9 +11846,9 @@ PanelWindow {
             width: btPopupWindow.width - btPopupWindow.cardShadow
             height: btPopupWindow.height - btPopupWindow.cardShadow
             radius: 16
-            color: "#F8FAFC"
+            color: themeHub.phoneScreenBg
             border.width: 2
-            border.color: "#1A1B2E"
+            border.color: themeHub.phoneBorder
 
             Column {
                 id: btCol
@@ -11333,9 +11861,9 @@ PanelWindow {
                     width: parent.width
                     height: 36
                     radius: 12
-                    color: "#FFFFFF"
+                    color: themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: themeHub.phoneBorder
 
                     Text {
                         x: 10
@@ -11344,10 +11872,37 @@ PanelWindow {
                         font.family: "Segoe UI"
                         font.pixelSize: 12
                         font.weight: Font.Bold
-                        color: "#1A1B2E"
+                        color: themeHub.phoneInk
                     }
 
                     Rectangle {
+                        visible: SystemControl.bluetoothSupported && SystemControl.bluetoothEnabled
+                        anchors.right: btSwitchPill.left
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: btScanLbl.implicitWidth + 14
+                        height: 22
+                        radius: 11
+                        color: SystemControl.btScanning ? "#FEF3C7" : (btScanMa.containsMouse ? themeHub.accentB : themeHub.phonePillBg)
+                        border.width: 1.5
+                        border.color: (SystemControl.btScanning || btScanMa.containsMouse) ? "#1A1B2E" : themeHub.phoneBorder
+                        Text {
+                            id: btScanLbl
+                            anchors.centerIn: parent
+                            text: SystemControl.btScanning ? "Scanning..." : "Scan"
+                            font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black
+                            color: (SystemControl.btScanning || btScanMa.containsMouse) ? "#1A1B2E" : themeHub.phoneInk
+                        }
+                        MouseArea {
+                            id: btScanMa
+                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            enabled: !SystemControl.btScanning
+                            onClicked: SystemControl.scanBluetooth()
+                        }
+                    }
+
+                    Rectangle {
+                        id: btSwitchPill
                         anchors.right: parent.right
                         anchors.rightMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
@@ -11380,7 +11935,7 @@ PanelWindow {
                 Flickable {
                     visible: SystemControl.bluetoothSupported && SystemControl.bluetoothEnabled
                     width: parent.width
-                    height: Math.min(180, Math.max(26, btDevCol.implicitHeight))
+                    height: Math.min(200, Math.max(26, btDevCol.implicitHeight))
                     contentWidth: width
                     contentHeight: btDevCol.implicitHeight
                     clip: true
@@ -11391,26 +11946,27 @@ PanelWindow {
                         spacing: 4
                         Text {
                             visible: SystemControl.bluetoothDevices.length === 0
-                            text: "No paired devices"
+                            text: SystemControl.btScanning ? "Scanning nearby Bluetooth devices..." : "No paired devices · Click Scan"
                             font.family: "Segoe UI"
                             font.pixelSize: 11
-                            color: "#64748B"
+                            color: themeHub.phoneMutedInk
                         }
                         Repeater {
                             model: SystemControl.bluetoothDevices
                             delegate: Rectangle {
                                 required property var modelData
+                                readonly property bool canForget: (modelData.paired !== false) && !!(modelData.address && modelData.address !== "" && modelData.address !== "0")
                                 width: btDevCol.width
                                 height: 28
                                 radius: 9
-                                color: modelData.connected ? "#C7D2FE" : "#FFFFFF"
+                                color: modelData.connected ? "#C7D2FE" : themeHub.phoneCardBg
                                 border.width: 1.5
-                                border.color: "#1A1B2E"
+                                border.color: modelData.connected ? "#1A1B2E" : themeHub.phoneBorder
 
                                 Row {
                                     x: 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 74
+                                    width: parent.width - (canForget ? 96 : 74)
                                     spacing: 6
                                     Image {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -11419,7 +11975,9 @@ PanelWindow {
                                         sourceSize.width: 24
                                         sourceSize.height: 24
                                         smooth: true
-                                        source: "qrc:/qml/icons/bt-dark.svg"
+                                        source: (!modelData.connected && themeHub.phoneDarkMode)
+                                            ? "qrc:/qml/icons/bt-light.svg"
+                                            : "qrc:/qml/icons/bt-dark.svg"
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -11429,46 +11987,108 @@ PanelWindow {
                                         font.family: "Segoe UI"
                                         font.pixelSize: 11
                                         font.weight: modelData.connected ? Font.Bold : Font.Medium
-                                        color: "#1A1B2E"
+                                        color: modelData.connected ? "#1A1B2E" : themeHub.phoneInk
                                     }
                                 }
                                 Text {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 8
+                                    anchors.right: canForget ? btFgtBtn.left : parent.right
+                                    anchors.rightMargin: canForget ? 6 : 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.connected ? "Connected" : "Paired"
+                                    text: modelData.connected ? "Connected" : (modelData.paired !== false ? "Paired" : "Nearby")
                                     font.family: "Segoe UI"
                                     font.pixelSize: 10
-                                    color: modelData.connected ? "#3730A3" : "#64748B"
+                                    color: modelData.connected ? "#3730A3" : themeHub.phoneMutedInk
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.rightMargin: canForget ? 26 : 0
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!modelData.connected && modelData.paired === false) {
+                                            topBarWindow.btPopupOpen = false
+                                            SystemControl.openAddDeviceDialog()
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    id: btFgtBtn
+                                    visible: canForget
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 5
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 18; height: 18; radius: 6
+                                    color: btFgtMa.containsMouse ? "#FB7185" : themeHub.phonePillBg
+                                    border.width: 1; border.color: "#1A1B2E"
+                                    Text { anchors.centerIn: parent; text: "×"; font.pixelSize: 11; font.weight: Font.Black; color: btFgtMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk }
+                                    MouseArea {
+                                        id: btFgtMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            const addr = modelData.address
+                                            Qt.callLater(function() { SystemControl.forgetBluetooth(addr) })
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                Rectangle {
+                Row {
                     width: parent.width
                     height: 28
-                    radius: 10
-                    color: btSetMouse.containsMouse ? "#E0E7FF" : "#FFFFFF"
-                    border.width: 1.5
-                    border.color: "#1A1B2E"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Bluetooth Settings"
-                        font.family: "Segoe UI"
-                        font.pixelSize: 11
-                        font.weight: Font.Bold
-                        color: "#1A1B2E"
+                    spacing: 6
+
+                    Rectangle {
+                        width: 82
+                        height: 28
+                        radius: 10
+                        color: btAddMa.containsMouse ? themeHub.accentB : themeHub.accentA
+                        border.width: 1.5
+                        border.color: "#1A1B2E"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "+ Add"
+                            font.family: "Segoe UI"
+                            font.pixelSize: 11
+                            font.weight: Font.Black
+                            color: "#1A1B2E"
+                        }
+                        MouseArea {
+                            id: btAddMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                topBarWindow.btPopupOpen = false
+                                SystemControl.openAddDeviceDialog()
+                            }
+                        }
                     }
-                    MouseArea {
-                        id: btSetMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            topBarWindow.btPopupOpen = false
-                            SystemControl.openSettings("ms-settings:bluetooth")
+
+                    Rectangle {
+                        width: parent.width - 88
+                        height: 28
+                        radius: 10
+                        color: btSetMouse.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
+                        border.width: 1.5
+                        border.color: btSetMouse.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Bluetooth Settings"
+                            font.family: "Segoe UI"
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            color: btSetMouse.containsMouse ? "#1A1B2E" : themeHub.phoneInk
+                        }
+                        MouseArea {
+                            id: btSetMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                topBarWindow.btPopupOpen = false
+                                SystemControl.openSettings("ms-settings:bluetooth")
+                            }
                         }
                     }
                 }
@@ -11536,9 +12156,9 @@ PanelWindow {
             width: volumePopupWindow.width - volumePopupWindow.cardShadow
             height: volumePopupWindow.height - volumePopupWindow.cardShadow
             radius: 16
-            color: "#F8FAFC"
+            color: themeHub.phoneScreenBg
             border.width: 2
-            border.color: "#1A1B2E"
+            border.color: themeHub.phoneBorder
 
             Column {
                 id: volPopupCol
@@ -11552,9 +12172,9 @@ PanelWindow {
                     width: parent.width
                     height: 62
                     radius: 12
-                    color: "#FFFFFF"
+                    color: themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: themeHub.phoneBorder
 
                     Column {
                         anchors.fill: parent
@@ -11581,7 +12201,7 @@ PanelWindow {
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "Master Volume"
-                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: "#1A1B2E"
+                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Black; color: themeHub.phoneInk
                                 }
                             }
                             Text {
@@ -11589,7 +12209,7 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: AudioService.masterMuted ? "Muted" : (AudioService.masterVolume + "%")
                                 font.family: "Consolas"; font.pixelSize: 12; font.weight: Font.Black
-                                color: AudioService.masterMuted ? "#DC2626" : "#1A1B2E"
+                                color: AudioService.masterMuted ? "#FB7185" : themeHub.phoneInk
                             }
                         }
 
@@ -11598,7 +12218,7 @@ PanelWindow {
                             Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width; height: 12; radius: 6
-                                color: "#E2E8F0"; border.width: 1.5; border.color: "#1A1B2E"
+                                color: themeHub.phonePillBg; border.width: 1.5; border.color: themeHub.phoneBorder
                                 Rectangle {
                                     x: 2; y: 2; height: 8; radius: 4
                                     width: Math.max(0, (parent.width - 4) * (AudioService.masterVolume / 100.0))
@@ -11623,9 +12243,9 @@ PanelWindow {
                     width: parent.width
                     height: 58
                     radius: 12
-                    color: "#FFFFFF"
+                    color: themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: themeHub.phoneBorder
 
                     Column {
                         anchors.fill: parent
@@ -11654,7 +12274,7 @@ PanelWindow {
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "Microphone"
-                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Bold; color: "#1A1B2E"
+                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.Bold; color: themeHub.phoneInk
                                 }
                             }
                             Text {
@@ -11662,7 +12282,7 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: AudioService.micMuted ? "Muted" : (AudioService.micVolume + "%")
                                 font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black
-                                color: AudioService.micMuted ? "#DC2626" : "#1A1B2E"
+                                color: AudioService.micMuted ? "#FB7185" : themeHub.phoneInk
                             }
                         }
 
@@ -11671,7 +12291,7 @@ PanelWindow {
                             Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width; height: 10; radius: 5
-                                color: "#E2E8F0"; border.width: 1.5; border.color: "#1A1B2E"
+                                color: themeHub.phonePillBg; border.width: 1.5; border.color: themeHub.phoneBorder
                                 Rectangle {
                                     x: 2; y: 2; height: 6; radius: 3
                                     width: Math.max(0, (parent.width - 4) * (AudioService.micVolume / 100.0))
@@ -11694,7 +12314,7 @@ PanelWindow {
                 Text {
                     visible: AudioService.outputDevices.length > 0
                     text: "OUTPUT DEVICE"
-                    font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#64748B"
+                    font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: themeHub.phoneMutedInk
                 }
 
                 Flow {
@@ -11707,15 +12327,16 @@ PanelWindow {
                             required property var modelData
                             width: Math.min(volPopupCol.width, vpDevLbl.implicitWidth + 18)
                             height: 26; radius: 10
-                            color: modelData.isDefault ? themeHub.accentB : (vpDevMa.containsMouse ? themeHub.hoverTint : "#FFFFFF")
-                            border.width: 1.5; border.color: "#1A1B2E"
+                            color: modelData.isDefault ? themeHub.accentB : (vpDevMa.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg)
+                            border.width: 1.5; border.color: (modelData.isDefault || vpDevMa.containsMouse) ? "#1A1B2E" : themeHub.phoneBorder
                             Text {
                                 id: vpDevLbl
                                 anchors.centerIn: parent
                                 width: Math.min(implicitWidth, volPopupCol.width - 20)
                                 elide: Text.ElideRight
                                 text: (modelData.isDefault ? "✓ " : "") + (modelData.name || "Output")
-                                font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E"
+                                font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold
+                                color: (modelData.isDefault || vpDevMa.containsMouse) ? "#1A1B2E" : themeHub.phoneInk
                             }
                             MouseArea {
                                 id: vpDevMa
@@ -11729,7 +12350,7 @@ PanelWindow {
                 // Per-App Volume Mixer
                 Text {
                     text: "APP MIXER (" + AudioService.sessions.length + ")"
-                    font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: "#64748B"
+                    font.family: "Segoe UI"; font.pixelSize: 10; font.weight: Font.Black; color: themeHub.phoneMutedInk
                 }
 
                 Flickable {
@@ -11747,7 +12368,7 @@ PanelWindow {
                         Text {
                             visible: AudioService.sessions.length === 0
                             text: "No active audio apps right now."
-                            font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.DemiBold; color: "#64748B"
+                            font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.DemiBold; color: themeHub.phoneMutedInk
                         }
 
                         Repeater {
@@ -11768,18 +12389,26 @@ PanelWindow {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 94; elide: Text.ElideRight
                                     text: modelData.name || "App"
-                                    font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E"
+                                    font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: themeHub.phoneInk
                                 }
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 24; height: 22; radius: 7
-                                    color: modelData.muted ? "#FDE68A" : "#FFFFFF"
-                                    border.width: 1.5; border.color: "#1A1B2E"
+                                    color: modelData.muted ? "#FDE68A" : themeHub.phoneCardBg
+                                    border.width: 1.5; border.color: modelData.muted ? "#1A1B2E" : themeHub.phoneBorder
                                     Image {
                                         anchors.centerIn: parent; width: 12; height: 12; sourceSize.width: 24; sourceSize.height: 24; smooth: true
-                                        source: modelData.muted ? "qrc:/qml/icons/volume-cross-dark.svg" : "qrc:/qml/icons/volume-loud-dark.svg"
+                                        source: modelData.muted
+                                            ? "qrc:/qml/icons/volume-cross-dark.svg"
+                                            : (themeHub.phoneDarkMode ? "qrc:/qml/icons/volume-loud-light.svg" : "qrc:/qml/icons/volume-loud-dark.svg")
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: AudioService.toggleAppMute(modelData.id) }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            const aid = modelData.id
+                                            Qt.callLater(function() { AudioService.toggleAppMute(aid) })
+                                        }
+                                    }
                                 }
                                 Item {
                                     anchors.verticalCenter: parent.verticalCenter
@@ -11787,7 +12416,7 @@ PanelWindow {
                                     Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width; height: 10; radius: 5
-                                        color: "#E2E8F0"; border.width: 1.5; border.color: "#1A1B2E"
+                                        color: themeHub.phonePillBg; border.width: 1.5; border.color: themeHub.phoneBorder
                                         Rectangle {
                                             x: 2; y: 2; height: 6; radius: 3
                                             width: Math.max(0, (parent.width - 4) * (modelData.volume / 100.0))
@@ -11807,7 +12436,7 @@ PanelWindow {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 36; horizontalAlignment: Text.AlignRight
                                     text: modelData.volume + "%"
-                                    font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: "#1A1B2E"
+                                    font.family: "Consolas"; font.pixelSize: 11; font.weight: Font.Black; color: themeHub.phoneInk
                                 }
                             }
                         }
@@ -11819,13 +12448,13 @@ PanelWindow {
                     width: parent.width
                     height: 28
                     radius: 10
-                    color: volSetMa.containsMouse ? themeHub.hoverTint : "#FFFFFF"
+                    color: volSetMa.containsMouse ? themeHub.hoverTint : themeHub.phoneCardBg
                     border.width: 1.5
-                    border.color: "#1A1B2E"
+                    border.color: volSetMa.containsMouse ? "#1A1B2E" : themeHub.phoneBorder
                     Text {
                         anchors.centerIn: parent
                         text: "Sound Settings"
-                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: "#1A1B2E"
+                        font.family: "Segoe UI"; font.pixelSize: 11; font.weight: Font.Bold; color: volSetMa.containsMouse ? "#1A1B2E" : themeHub.phoneInk
                     }
                     MouseArea {
                         id: volSetMa

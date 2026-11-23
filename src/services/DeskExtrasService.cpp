@@ -295,19 +295,55 @@ QString sanitizeArtist(QString raw)
 
 QString sanitizeTrackText(QString raw)
 {
-    static const QRegularExpression kJpBracketRe(
-        QStringLiteral("【[^】]*(?:official|mv|pv|audio|lyrics|full|visualizer|ver\\.|version|公式|歌詞|字幕|高画質|高音質)[^】]*】"),
-        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression kJpBracketRe(QStringLiteral("【[^】]*】"));
     raw.remove(kJpBracketRe);
     static const QRegularExpression kParenRe(
-        QStringLiteral("\\s*[\\[(](?:official|lyrics|audio|mv|music video|hd|4k|remix|feat\\.|ft\\.|explicit|ver\\.|version|visualizer|公式|歌詞)[^\\])]*[\\])]"),
+        QStringLiteral("\\s*[\\[(](?:official|lyrics|audio|mv|music video|hd|4k|remix|feat\\.|ft\\.|explicit|ver\\.|version|visualizer|cover(?:ed)?(?:\\s+by)?|arrange|公式|歌詞|歌ってみた)[^\\])]*[\\])]"),
         QRegularExpression::CaseInsensitiveOption);
     raw.remove(kParenRe);
+    static const QRegularExpression kCoverByRe(
+        QStringLiteral("(?:\\s+[-/|·•])?\\s*(?:Arrange\\s+)?(?:covered|cover|sung|vocal)\\s+by\\s+.*$"),
+        QRegularExpression::CaseInsensitiveOption);
+    raw.remove(kCoverByRe);
+    static const QRegularExpression kCoverTagRe(
+        QStringLiteral("\\b(?:Arrange|Covered|Cover|歌ってみた|Full\\s+Ver\\.?|Short\\s+Ver\\.?)\\b"),
+        QRegularExpression::CaseInsensitiveOption);
+    raw.remove(kCoverTagRe);
     static const QRegularExpression kFeatRe(
         QStringLiteral("\\s+(?:feat\\.|ft\\.)\\s+.*$"),
         QRegularExpression::CaseInsensitiveOption);
     raw.remove(kFeatRe);
+    static const QRegularExpression kTrailingSepRe(QStringLiteral("\\s*[-/|·•]\\s*$"));
+    raw.remove(kTrailingSepRe);
     return raw.simplified().trimmed();
+}
+
+bool needsTranslationFor(const QString& targetLang, const QVariantList& lines)
+{
+    if (targetLang == QStringLiteral("off") || lines.isEmpty())
+        return false;
+    QString sample;
+    const int n = qMin(lines.size(), 12);
+    for (int i = 0; i < n; ++i)
+        sample += lines.at(i).toMap().value(QStringLiteral("text")).toString();
+
+    if (targetLang == QStringLiteral("en")) {
+        for (const QChar ch : sample) {
+            if (ch.unicode() > 0x024F)
+                return true;
+        }
+        return false;
+    }
+    if (targetLang == QStringLiteral("vi")) {
+        static const QString viChars = QStringLiteral("ăâđêôơưĂÂĐÊÔƠƯ");
+        for (const QChar ch : sample) {
+            const ushort u = ch.unicode();
+            if ((u >= 0x1EA0 && u <= 0x1EF9) || viChars.contains(ch))
+                return false;
+        }
+        return true;
+    }
+    return true;
 }
 
 } // namespace
@@ -339,9 +375,24 @@ void LyricsService::setPaused(bool paused)
     if (m_paused) {
         m_tickTimer.stop();
     } else if (m_media && m_media->isPlaying() && !m_lines.isEmpty()) {
+        m_anchorMs = QDateTime::currentMSecsSinceEpoch();
         updateActiveLine();
         m_tickTimer.start();
     }
+}
+
+void LyricsService::setTranslateLang(const QString& lang)
+{
+    const QString l = lang.trimmed().toLower();
+    const QString norm = (l == QStringLiteral("vi") || l == QStringLiteral("off")) ? l : QStringLiteral("en");
+    if (m_translateLang == norm)
+        return;
+    m_translateLang = norm;
+    m_translatedLines.clear();
+    emit translateLangChanged();
+    emit lyricsChanged();
+    if (!m_lines.isEmpty() && m_translateLang != QStringLiteral("off"))
+        startTranslationIfNeeded(m_requestGen);
 }
 
 void LyricsService::refresh()
@@ -350,6 +401,7 @@ void LyricsService::refresh()
         m_loading = false;
         m_synced = false;
         m_lines.clear();
+        m_translatedLines.clear();
         m_plainText.clear();
         m_activeIndex = -1;
         m_trackKey.clear();
@@ -374,10 +426,15 @@ void LyricsService::searchManual(const QString& query)
     m_loading = true;
     m_synced = false;
     m_lines.clear();
+    m_translatedLines.clear();
     m_plainText.clear();
     m_activeIndex = -1;
     m_trackKey = cleaned;
     m_pendingKey = cleaned;
+    m_lastReportedPosSec = -1.0;
+    m_anchorPosSec = m_media ? m_media->positionSec() : 0.0;
+    m_anchorMs = QDateTime::currentMSecsSinceEpoch();
+    m_wasPlaying = m_media ? m_media->isPlaying() : false;
     m_statusText = QStringLiteral("Searching \"%1\"...").arg(cleaned);
     m_tickTimer.stop();
     emit lyricsChanged();
@@ -395,10 +452,13 @@ void LyricsService::onMediaUpdated()
         m_loading = false;
         m_synced = false;
         m_lines.clear();
+        m_translatedLines.clear();
         m_plainText.clear();
         m_activeIndex = -1;
         m_trackKey.clear();
         m_pendingKey.clear();
+        m_lastReportedPosSec = -1.0;
+        m_wasPlaying = false;
         m_statusText = QStringLiteral("Play music or search manually");
         m_tickTimer.stop();
         if (!wasEmpty) {
@@ -419,12 +479,34 @@ void LyricsService::onTimelineUpdated()
 {
     if (!m_media)
         return;
-    m_anchorPosSec = m_media->positionSec();
-    m_anchorMs = QDateTime::currentMSecsSinceEpoch();
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const double reported = m_media->positionSec();
+    const bool playing = m_media->isPlaying();
+
+    double curInterp = m_anchorPosSec;
+    if (m_wasPlaying && m_anchorMs > 0) {
+        const qint64 elapsed = now - m_anchorMs;
+        if (elapsed > 0 && elapsed < 300000)
+            curInterp += elapsed / 1000.0;
+    }
+
+    if (m_lastReportedPosSec < 0.0 || qAbs(reported - m_lastReportedPosSec) > 0.25) {
+        m_anchorPosSec = reported;
+        m_anchorMs = now;
+    } else if (playing != m_wasPlaying) {
+        if (!playing)
+            m_anchorPosSec = curInterp;
+        m_anchorMs = now;
+    }
+
+    m_lastReportedPosSec = reported;
+    m_wasPlaying = playing;
+
     if (m_synced && !m_lines.isEmpty()) {
-        if (!m_paused && m_media->isPlaying() && !m_tickTimer.isActive())
+        if (!m_paused && playing && !m_tickTimer.isActive())
             m_tickTimer.start();
-        else if ((!m_media->isPlaying() || m_paused) && m_tickTimer.isActive())
+        else if ((!playing || m_paused) && m_tickTimer.isActive())
             m_tickTimer.stop();
     }
     updateActiveLine();
@@ -444,8 +526,13 @@ void LyricsService::fetchLyrics(const QString& title, const QString& artist, dou
     m_loading = true;
     m_synced = false;
     m_lines.clear();
+    m_translatedLines.clear();
     m_plainText.clear();
     m_activeIndex = -1;
+    m_lastReportedPosSec = -1.0;
+    m_anchorPosSec = m_media ? m_media->positionSec() : 0.0;
+    m_anchorMs = QDateTime::currentMSecsSinceEpoch();
+    m_wasPlaying = m_media ? m_media->isPlaying() : false;
     m_statusText = QStringLiteral("Fetching lyrics...");
     m_tickTimer.stop();
     emit lyricsChanged();
@@ -468,10 +555,11 @@ void LyricsService::fetchLyrics(const QString& title, const QString& artist, dou
         if (gen != m_requestGen)
             return;
 
-        if (res.statusCode == 200 && applyTrackJson(res.body, false)) {
+        if (res.statusCode == 200 && applyTrackJson(res.body, false, durationSec)) {
             m_loading = false;
             emit lyricsChanged();
             updateActiveLine();
+            startTranslationIfNeeded(gen);
             return;
         }
 
@@ -479,23 +567,23 @@ void LyricsService::fetchLyrics(const QString& title, const QString& artist, dou
         QString searchQ = queryTitle;
         if (!cleanArtist.isEmpty() && !searchQ.contains(cleanArtist, Qt::CaseInsensitive))
             searchQ = searchQ + QStringLiteral(" ") + cleanArtist;
+        const QString secondaryQ = (searchQ != queryTitle) ? queryTitle : QString();
 
-        fetchSearchFallback(searchQ, durationSec, gen);
+        fetchSearchFallback(searchQ, durationSec, gen, secondaryQ);
     });
 }
 
-void LyricsService::fetchSearchFallback(const QString& query, double targetDuration, uint64_t gen)
+void LyricsService::fetchSearchFallback(const QString& query, double targetDuration, uint64_t gen, const QString& secondaryQuery)
 {
     QUrl url(QStringLiteral("https://lrclib.net/api/search"));
     QUrlQuery q;
     q.addQueryItem(QStringLiteral("q"), query);
     url.setQuery(q);
 
-    runHttpAsync(this, url.toString(QUrl::FullyEncoded), [this, gen, targetDuration](const HttpResult& res) {
+    runHttpAsync(this, url.toString(QUrl::FullyEncoded), [this, gen, targetDuration, secondaryQuery](const HttpResult& res) {
         if (gen != m_requestGen)
             return;
 
-        m_loading = false;
         if (res.statusCode == 200 && !res.body.isEmpty()) {
             const QJsonDocument doc = QJsonDocument::fromJson(res.body);
             if (doc.isArray()) {
@@ -518,37 +606,36 @@ void LyricsService::fetchSearchFallback(const QString& query, double targetDurat
                     }
                 }
                 if (bestIdx >= 0) {
+                    m_loading = false;
                     const QJsonObject chosen = arr.at(bestIdx).toObject();
                     const QString syncedLrc = chosen.value(QStringLiteral("syncedLyrics")).toString().trimmed();
                     const QString plainLrc = chosen.value(QStringLiteral("plainLyrics")).toString().trimmed();
+                    const double recDur = chosen.value(QStringLiteral("duration")).toDouble();
+                    const double effDur = targetDuration > 10.0 ? targetDuration : recDur;
                     if (!syncedLrc.isEmpty()) {
                         parseLrc(syncedLrc);
                         m_synced = !m_lines.isEmpty();
                         m_statusText = m_synced ? QStringLiteral("Synced") : QStringLiteral("Plain");
                     } else if (!plainLrc.isEmpty()) {
-                        m_plainText = plainLrc;
-                        const QStringList splitLines = plainLrc.split(QLatin1Char('\n'));
-                        for (const QString& ln : splitLines) {
-                            const QString t = ln.trimmed();
-                            if (!t.isEmpty()) {
-                                QVariantMap row;
-                                row[QStringLiteral("time")] = -1.0;
-                                row[QStringLiteral("text")] = t;
-                                m_lines.append(row);
-                            }
-                        }
-                        m_synced = false;
-                        m_statusText = QStringLiteral("Plain lyrics");
+                        applyPlainLyrics(plainLrc, effDur);
                     }
                     emit lyricsChanged();
                     updateActiveLine();
+                    startTranslationIfNeeded(gen);
                     return;
                 }
             }
         }
 
+        if (!secondaryQuery.isEmpty()) {
+            fetchSearchFallback(secondaryQuery, targetDuration, gen, QString());
+            return;
+        }
+
+        m_loading = false;
         m_synced = false;
         m_lines.clear();
+        m_translatedLines.clear();
         m_plainText.clear();
         m_statusText = res.error.isEmpty()
             ? QStringLiteral("No lyrics found on LRCLIB")
@@ -558,7 +645,7 @@ void LyricsService::fetchSearchFallback(const QString& query, double targetDurat
     });
 }
 
-bool LyricsService::applyTrackJson(const QByteArray& body, bool allowArray)
+bool LyricsService::applyTrackJson(const QByteArray& body, bool allowArray, double targetDuration)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(body);
     QJsonObject obj;
@@ -572,6 +659,8 @@ bool LyricsService::applyTrackJson(const QByteArray& body, bool allowArray)
 
     const QString syncedLrc = obj.value(QStringLiteral("syncedLyrics")).toString().trimmed();
     const QString plainLrc = obj.value(QStringLiteral("plainLyrics")).toString().trimmed();
+    const double recDur = obj.value(QStringLiteral("duration")).toDouble();
+    const double effDur = targetDuration > 10.0 ? targetDuration : recDur;
 
     if (!syncedLrc.isEmpty()) {
         parseLrc(syncedLrc);
@@ -582,22 +671,116 @@ bool LyricsService::applyTrackJson(const QByteArray& body, bool allowArray)
         }
     }
     if (!plainLrc.isEmpty()) {
-        m_plainText = plainLrc;
-        const QStringList splitLines = plainLrc.split(QLatin1Char('\n'));
-        for (const QString& ln : splitLines) {
-            const QString t = ln.trimmed();
-            if (!t.isEmpty()) {
-                QVariantMap row;
-                row[QStringLiteral("time")] = -1.0;
-                row[QStringLiteral("text")] = t;
-                m_lines.append(row);
-            }
-        }
-        m_synced = false;
-        m_statusText = QStringLiteral("Plain lyrics");
+        applyPlainLyrics(plainLrc, effDur);
         return !m_lines.isEmpty();
     }
     return false;
+}
+
+void LyricsService::applyPlainLyrics(const QString& plainLrc, double targetDuration)
+{
+    m_plainText = plainLrc;
+    m_lines.clear();
+    QStringList nonEmpty;
+    const QStringList splitLines = plainLrc.split(QLatin1Char('\n'));
+    for (const QString& ln : splitLines) {
+        const QString t = ln.trimmed();
+        if (!t.isEmpty())
+            nonEmpty.append(t);
+    }
+    const double dur = (targetDuration > 10.0) ? targetDuration : 180.0;
+    const int total = nonEmpty.size();
+    for (int i = 0; i < total; ++i) {
+        QVariantMap row;
+        row[QStringLiteral("time")] = (dur * i) / qMax(1, total);
+        row[QStringLiteral("text")] = nonEmpty.at(i);
+        m_lines.append(row);
+    }
+    m_synced = !m_lines.isEmpty();
+    m_statusText = QStringLiteral("Auto-scroll");
+    if (!m_paused && m_media && m_media->isPlaying() && !m_lines.isEmpty())
+        m_tickTimer.start();
+}
+
+void LyricsService::startTranslationIfNeeded(uint64_t gen)
+{
+    if (gen != m_requestGen || m_lines.isEmpty() || m_translateLang == QStringLiteral("off"))
+        return;
+    if (!needsTranslationFor(m_translateLang, m_lines))
+        return;
+
+    m_translatedLines.clear();
+    m_translatedLines.reserve(m_lines.size());
+    for (int i = 0; i < m_lines.size(); ++i)
+        m_translatedLines.append(QString());
+
+    QList<QPair<int, int>> ranges;
+    int chunkStart = 0;
+    int chunkBytes = 0;
+    for (int i = 0; i < m_lines.size(); ++i) {
+        const int lineBytes = m_lines.at(i).toMap().value(QStringLiteral("text")).toString().toUtf8().size() + 1;
+        if (i > chunkStart && chunkBytes + lineBytes > 1100) {
+            ranges.append(qMakePair(chunkStart, i));
+            chunkStart = i;
+            chunkBytes = 0;
+            if (ranges.size() >= 4)
+                break;
+        }
+        chunkBytes += lineBytes;
+    }
+    if (ranges.size() < 4 && chunkStart < m_lines.size())
+        ranges.append(qMakePair(chunkStart, m_lines.size()));
+
+    if (!ranges.isEmpty())
+        translateChunk(0, ranges, m_translateLang, gen);
+}
+
+void LyricsService::translateChunk(int chunkIdx, const QList<QPair<int, int>>& ranges, const QString& targetLang, uint64_t gen)
+{
+    if (gen != m_requestGen || chunkIdx >= ranges.size() || m_translateLang != targetLang)
+        return;
+
+    const int start = ranges.at(chunkIdx).first;
+    const int end = qMin(ranges.at(chunkIdx).second, m_lines.size());
+    if (start >= end)
+        return;
+
+    QStringList batch;
+    batch.reserve(end - start);
+    for (int i = start; i < end; ++i)
+        batch.append(m_lines.at(i).toMap().value(QStringLiteral("text")).toString());
+
+    QUrl url(QStringLiteral("https://translate.googleapis.com/translate_a/single"));
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("client"), QStringLiteral("gtx"));
+    q.addQueryItem(QStringLiteral("sl"), QStringLiteral("auto"));
+    q.addQueryItem(QStringLiteral("tl"), targetLang);
+    q.addQueryItem(QStringLiteral("dt"), QStringLiteral("t"));
+    q.addQueryItem(QStringLiteral("q"), batch.join(QLatin1Char('\n')));
+    url.setQuery(q);
+
+    runHttpAsync(this, url.toString(QUrl::FullyEncoded), [this, chunkIdx, ranges, targetLang, gen, start, end](const HttpResult& res) {
+        if (gen != m_requestGen || m_translateLang != targetLang)
+            return;
+        if (res.statusCode == 200 && !res.body.isEmpty()) {
+            const QJsonDocument doc = QJsonDocument::fromJson(res.body);
+            if (doc.isArray() && !doc.array().isEmpty()) {
+                const QJsonArray segs = doc.array().at(0).toArray();
+                QString full;
+                for (const QJsonValue& v : segs) {
+                    if (v.isArray() && !v.toArray().isEmpty())
+                        full += v.toArray().at(0).toString();
+                }
+                const QStringList trans = full.split(QLatin1Char('\n'));
+                for (int k = 0; k < (end - start) && k < trans.size(); ++k) {
+                    if (start + k < m_translatedLines.size())
+                        m_translatedLines[start + k] = trans.at(k).trimmed();
+                }
+                emit lyricsChanged();
+            }
+        }
+        translateChunk(chunkIdx + 1, ranges, targetLang, gen);
+    });
 }
 
 void LyricsService::parseLrc(const QString& lrcText)

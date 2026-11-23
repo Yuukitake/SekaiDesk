@@ -8,8 +8,8 @@
 1 24 "SekaiDesk.manifest"
 
 VS_VERSION_INFO VERSIONINFO
-    FILEVERSION     0,3,2,0
-    PRODUCTVERSION  0,3,2,0
+    FILEVERSION     0,3,4,0
+    PRODUCTVERSION  0,3,4,0
     FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
     FILEFLAGS       0x0L
     FILEOS          VOS_NT_WINDOWS32
@@ -22,11 +22,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "SekaiDesk"
             VALUE "FileDescription",  "SekaiDesk"
-            VALUE "FileVersion",      "0.3.2"
+            VALUE "FileVersion",      "0.3.4"
             VALUE "InternalName",     "SekaiDesk"
             VALUE "OriginalFilename", "SekaiDesk.exe"
             VALUE "ProductName",      "SekaiDesk"
-            VALUE "ProductVersion",   "0.3.2"
+            VALUE "ProductVersion",   "0.3.4"
         END
     END
     BLOCK "VarFileInfo"

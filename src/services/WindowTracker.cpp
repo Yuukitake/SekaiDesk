@@ -5,9 +5,12 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QHash>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QUrl>
+#include <cmath>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
@@ -20,6 +23,7 @@
 #include <winsock2.h>
 #include <ws2ipdef.h>
 #include <windows.h>
+#include <dxgi.h>
 #include <iphlpapi.h>
 #include <netioapi.h>
 #include <dwmapi.h>
@@ -154,6 +158,181 @@ static BOOL CALLBACK enumWindowsProc(HWND hwnd, LPARAM lParam)
     }
     return TRUE;
 }
+
+static QString readRegSz64(HKEY root, const wchar_t* subKey, const wchar_t* valueName)
+{
+    HKEY hKey = nullptr;
+    if (RegOpenKeyExW(root, subKey, 0, KEY_READ | KEY_WOW64_64KEY, &hKey) != ERROR_SUCCESS)
+        return {};
+    wchar_t buf[512] = {};
+    DWORD type = 0;
+    DWORD cb = sizeof(buf) - sizeof(wchar_t);
+    QString out;
+    if (RegQueryValueExW(hKey, valueName, nullptr, &type, reinterpret_cast<LPBYTE>(buf), &cb) == ERROR_SUCCESS
+        && (type == REG_SZ || type == REG_EXPAND_SZ) && cb >= sizeof(wchar_t)) {
+        out = QString::fromWCharArray(buf).trimmed();
+    }
+    RegCloseKey(hKey);
+    return out;
+}
+
+static QString queryCpuSpec()
+{
+    QString raw = readRegSz64(
+        HKEY_LOCAL_MACHINE,
+        L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+        L"ProcessorNameString");
+    if (raw.isEmpty())
+        return QStringLiteral("Unknown CPU");
+    static const QRegularExpression tmRe(QStringLiteral(R"(\((?:R|TM|r|tm)\))"));
+    static const QRegularExpression cpuWordRe(QStringLiteral(R"(\bCPU\b)"));
+    static const QRegularExpression freqRe(QStringLiteral(R"(\s+@.*$)"));
+    raw.remove(tmRe);
+    raw.remove(cpuWordRe);
+    raw.remove(freqRe);
+    raw = raw.simplified();
+    return raw.isEmpty() ? QStringLiteral("Unknown CPU") : raw;
+}
+
+static QString queryRamSpec()
+{
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof(ms);
+    QString capStr;
+    if (GlobalMemoryStatusEx(&ms) && ms.ullTotalPhys > 0) {
+        const double gb = static_cast<double>(ms.ullTotalPhys) / (1024.0 * 1024.0 * 1024.0);
+        if (gb >= 1.0)
+            capStr = QStringLiteral("%1 GB").arg(static_cast<qint64>(std::llround(gb)));
+        else
+            capStr = QStringLiteral("%1 MB").arg(static_cast<qint64>(std::llround(static_cast<double>(ms.ullTotalPhys) / (1024.0 * 1024.0))));
+    } else {
+        capStr = QStringLiteral("Unknown RAM");
+    }
+
+    QString ddrType;
+    const DWORD needed = GetSystemFirmwareTable('RSMB', 0, nullptr, 0);
+    if (needed > 8 && needed <= 512 * 1024) {
+        std::vector<BYTE> buf(needed);
+        if (GetSystemFirmwareTable('RSMB', 0, buf.data(), needed) == needed) {
+            const DWORD tableLen = *reinterpret_cast<const DWORD*>(buf.data() + 4);
+            const size_t startOff = 8;
+            const size_t endOff = qMin(buf.size(), startOff + static_cast<size_t>(tableLen));
+            size_t off = startOff;
+            while (off + 4 <= endOff) {
+                const BYTE type = buf[off];
+                const BYTE hdrLen = buf[off + 1];
+                if (hdrLen < 4 || off + hdrLen > endOff)
+                    break;
+                if (type == 17 && hdrLen >= 0x13) {
+                    const WORD memSize = static_cast<WORD>(buf[off + 0x0C])
+                        | (static_cast<WORD>(buf[off + 0x0D]) << 8);
+                    if (memSize > 0) {
+                        const BYTE mtype = buf[off + 0x12];
+                        switch (mtype) {
+                        case 0x13: ddrType = QStringLiteral("DDR2"); break;
+                        case 0x18: ddrType = QStringLiteral("DDR3"); break;
+                        case 0x1A: ddrType = QStringLiteral("DDR4"); break;
+                        case 0x1E: ddrType = QStringLiteral("LPDDR4"); break;
+                        case 0x22: ddrType = QStringLiteral("DDR5"); break;
+                        case 0x23: ddrType = QStringLiteral("LPDDR5"); break;
+                        default: break;
+                        }
+                        if (!ddrType.isEmpty())
+                            break;
+                    }
+                }
+                size_t p = off + hdrLen;
+                while (p + 1 < endOff && !(buf[p] == 0 && buf[p + 1] == 0))
+                    ++p;
+                if (p + 1 >= endOff)
+                    break;
+                off = p + 2;
+            }
+        }
+    }
+
+    return ddrType.isEmpty() ? capStr : QStringLiteral("%1 %2").arg(capStr, ddrType);
+}
+
+static QString queryGpuSpec()
+{
+    QString bestName;
+    SIZE_T bestVram = 0;
+
+    if (HMODULE dxgiMod = LoadLibraryW(L"dxgi.dll")) {
+        using PfnCreateDXGIFactory1 = HRESULT(WINAPI*)(REFIID, void**);
+        const auto pCreate = reinterpret_cast<PfnCreateDXGIFactory1>(
+            GetProcAddress(dxgiMod, "CreateDXGIFactory1"));
+        if (pCreate) {
+            static const GUID kIidDXGIFactory1 = {
+                0x770aae78, 0xf26f, 0x4dba, { 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87 }
+            };
+            IDXGIFactory1* factory = nullptr;
+            if (SUCCEEDED(pCreate(kIidDXGIFactory1, reinterpret_cast<void**>(&factory))) && factory) {
+                for (UINT idx = 0; ; ++idx) {
+                    IDXGIAdapter1* adapter = nullptr;
+                    if (factory->EnumAdapters1(idx, &adapter) == DXGI_ERROR_NOT_FOUND)
+                        break;
+                    if (adapter) {
+                        DXGI_ADAPTER_DESC1 desc{};
+                        if (SUCCEEDED(adapter->GetDesc1(&desc))) {
+                            if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+                                const QString name = QString::fromWCharArray(desc.Description).trimmed();
+                                if (!name.isEmpty() && (bestName.isEmpty() || desc.DedicatedVideoMemory > bestVram)) {
+                                    bestName = name;
+                                    bestVram = desc.DedicatedVideoMemory;
+                                }
+                            }
+                        }
+                        adapter->Release();
+                    }
+                }
+                factory->Release();
+            }
+        }
+        FreeLibrary(dxgiMod);
+    }
+
+    if (bestName.isEmpty()) {
+        DISPLAY_DEVICEW dd{};
+        dd.cb = sizeof(dd);
+        if (EnumDisplayDevicesW(nullptr, 0, &dd, 0))
+            bestName = QString::fromWCharArray(dd.DeviceString).trimmed();
+    }
+
+    if (bestName.isEmpty())
+        return QStringLiteral("Unknown GPU");
+
+    if (bestVram >= static_cast<SIZE_T>(512ULL * 1024ULL * 1024ULL)
+        && !bestName.contains(QStringLiteral("GB"), Qt::CaseInsensitive)) {
+        const int gb = static_cast<int>(std::llround(
+            static_cast<double>(bestVram) / (1024.0 * 1024.0 * 1024.0)));
+        if (gb > 0)
+            bestName += QStringLiteral(" %1GB").arg(gb);
+    }
+    return bestName;
+}
+
+static QString queryOsSpec()
+{
+    const wchar_t* sub = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
+    QString product = readRegSz64(HKEY_LOCAL_MACHINE, sub, L"ProductName");
+    QString dispVer = readRegSz64(HKEY_LOCAL_MACHINE, sub, L"DisplayVersion");
+    if (dispVer.isEmpty())
+        dispVer = readRegSz64(HKEY_LOCAL_MACHINE, sub, L"ReleaseId");
+    const QString build = readRegSz64(HKEY_LOCAL_MACHINE, sub, L"CurrentBuildNumber");
+
+    if (!build.isEmpty() && build.toInt() >= 22000 && product.contains(QStringLiteral("Windows 10")))
+        product.replace(QStringLiteral("Windows 10"), QStringLiteral("Windows 11"));
+
+    if (product.isEmpty())
+        product = QStringLiteral("Windows");
+    if (!dispVer.isEmpty() && !build.isEmpty())
+        return QStringLiteral("%1 · %2 (%3)").arg(product, dispVer, build);
+    if (!build.isEmpty())
+        return QStringLiteral("%1 (%2)").arg(product, build);
+    return product;
+}
 #endif
 
 } // namespace
@@ -167,11 +346,23 @@ WindowTracker::WindowTracker(QObject* parent)
     if (GetComputerNameW(comp, &compLen))
         m_machineName = QString::fromWCharArray(comp, static_cast<int>(compLen));
     m_userName = qEnvironmentVariable("USERNAME");
+    m_cpuSpec = queryCpuSpec();
+    m_ramSpec = queryRamSpec();
+    m_gpuSpec = queryGpuSpec();
+    m_osSpec = queryOsSpec();
 #endif
     if (m_machineName.isEmpty())
         m_machineName = QStringLiteral("Windows");
     if (m_userName.isEmpty())
         m_userName = QStringLiteral("User");
+    if (m_cpuSpec.isEmpty())
+        m_cpuSpec = QStringLiteral("Unknown CPU");
+    if (m_ramSpec.isEmpty())
+        m_ramSpec = QStringLiteral("Unknown RAM");
+    if (m_gpuSpec.isEmpty())
+        m_gpuSpec = QStringLiteral("Unknown GPU");
+    if (m_osSpec.isEmpty())
+        m_osSpec = QStringLiteral("Windows");
 
     m_pollTimer.setInterval(1000);
     connect(&m_pollTimer, &QTimer::timeout, this, &WindowTracker::refresh);
@@ -185,6 +376,13 @@ WindowTracker::WindowTracker(QObject* parent)
     refresh();
     if (m_edgePollingNeeded)
         pollEdgeAndOverlap();
+}
+
+void WindowTracker::checkLowBatteryAlert()
+{
+    m_batteryAlertArmed = true;
+    m_lowBatteryAlertTier = 0;
+    updateSystemStats();
 }
 
 void WindowTracker::setEdgePollingNeeded(bool needed)
@@ -517,6 +715,7 @@ void WindowTracker::updateSystemStats()
             return -1;
 
         int maxC = -1;
+        double maxRaw = -1.0;
         for (DWORD i = 0; i < itemCount; ++i) {
             if (items[i].FmtValue.CStatus != ERROR_SUCCESS)
                 continue;
@@ -528,9 +727,20 @@ void WindowTracker::updateSystemStats()
                 celsius = raw - 273.15;
             if (celsius >= 0.0 && celsius <= 125.0) {
                 const int c = qRound(celsius);
-                if (c > maxC)
+                if (c > maxC) {
                     maxC = c;
+                    maxRaw = raw;
+                }
             }
+        }
+        static double s_lastAcpiRaw = -1.0;
+        static bool s_acpiDynamic = false;
+        if (maxC >= 0) {
+            if (s_lastAcpiRaw >= 0.0 && qAbs(maxRaw - s_lastAcpiRaw) > 0.05)
+                s_acpiDynamic = true;
+            s_lastAcpiRaw = maxRaw;
+            if (!s_acpiDynamic && maxC <= 32)
+                return -1; // Suppress static BIOS ACPI stub (e.g. constant 28-30C TZ00/TZ01)
         }
         return maxC;
     };
@@ -678,6 +888,22 @@ void WindowTracker::updateSystemStats()
         }
     }
 
+    const QString fakeBatt = qEnvironmentVariable("SEKAIDESK_FAKE_BATTERY").trimmed();
+    if (!fakeBatt.isEmpty()) {
+        const QStringList parts = fakeBatt.split(QLatin1Char(','));
+        bool ok = false;
+        const int pct = parts.value(0).trimmed().toInt(&ok);
+        if (ok) {
+            nextHasBattery = true;
+            nextBatteryPct = qBound(0, pct, 100);
+            const QString mode = parts.value(1).trimmed().toLower();
+            nextBatteryCharging = (mode == QStringLiteral("charging") || mode == QStringLiteral("ac") || mode == QStringLiteral("1"));
+            nextBatteryTime = nextBatteryCharging
+                ? QStringLiteral("Plugged in (Simulated)")
+                : QStringLiteral("Simulated Battery");
+        }
+    }
+
     bool historyUpdated = false;
     ++m_historyTick;
     if (m_cpuHistory.isEmpty() || (m_historyTick % 3) == 0) {
@@ -714,6 +940,18 @@ void WindowTracker::updateSystemStats()
         m_downloadBps = nextDownBps;
         m_uploadBps = nextUpBps;
         emit statsChanged();
+    }
+
+    if (m_batteryAlertArmed) {
+        if (!m_hasBattery || m_batteryCharging || m_batteryPercent > 25) {
+            m_lowBatteryAlertTier = 0;
+        } else if (m_batteryPercent <= 10 && m_lowBatteryAlertTier < 2) {
+            m_lowBatteryAlertTier = 2;
+            emit lowBatteryAlert(m_batteryPercent, true);
+        } else if (m_batteryPercent <= 20 && m_lowBatteryAlertTier < 1) {
+            m_lowBatteryAlertTier = 1;
+            emit lowBatteryAlert(m_batteryPercent, false);
+        }
     }
 #endif
 }

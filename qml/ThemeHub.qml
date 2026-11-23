@@ -178,6 +178,17 @@ Item {
     property bool screenRoundEnabled: ConfigStore.boolValue("ui.screenRound", true)
     property bool dockAutoHide: ConfigStore.boolValue("dock.autoHide", true)
     property bool phoneMode: ConfigStore.boolValue("quickPanel.phoneMode", true)
+    property bool phoneDarkMode: ConfigStore.boolValue("quickPanel.darkMode", false)
+    readonly property color phoneScreenBg: phoneDarkMode ? "#121524" : "#F3F6FD"
+    readonly property color phoneLandBg:   phoneDarkMode
+        ? Qt.tint("#131627", Qt.rgba(accentB.r, accentB.g, accentB.b, 0.08))
+        : Qt.tint("#FAFAFF", Qt.rgba(accentB.r, accentB.g, accentB.b, 0.14))
+    readonly property color phoneCardBg:   phoneDarkMode ? "#1C2136" : "#FFFFFF"
+    readonly property color phoneSubBg:    phoneDarkMode ? "#252B45" : "#F8FAFC"
+    readonly property color phonePillBg:   phoneDarkMode ? "#252B45" : "#F1F5F9"
+    readonly property color phoneInk:      phoneDarkMode ? "#F1F5F9" : "#1A1B2E"
+    readonly property color phoneMutedInk: phoneDarkMode ? "#94A3B8" : "#64748B"
+    readonly property color phoneBorder:   phoneDarkMode ? "#384166" : "#1A1B2E"
     property string taskbarHideMode: ConfigStore.stringValue("taskbar.hideMode", "primary")
     property bool taskbarWin11Strict: ConfigStore.boolValue("taskbar.win11StrictHide", true)
 
@@ -214,7 +225,10 @@ Item {
     // Bar customization
     property string barEdge: ConfigStore.stringValue("bar.edge", "top")
     readonly property bool barVertical: barEdge === "left" || barEdge === "right"
-    property string barStyle: ConfigStore.stringValue("bar.style", "transparent")
+    property string barStyle: {
+        const s = ConfigStore.stringValue("bar.style", "blur")
+        return (s === "transparent" || s === "blur" || s === "straight") ? s : "blur"
+    }
     property bool barAutoHide: ConfigStore.boolValue("bar.autoHide", false)
     property bool barShowActiveWindow: ConfigStore.boolValue("bar.showActiveWindow", true)
     property bool barShowMedia: ConfigStore.boolValue("bar.showMedia", true)
@@ -228,8 +242,8 @@ Item {
     }
     property bool barShowBattery: ConfigStore.boolValue("bar.showBattery", true)
     readonly property int barStripThickness: barVertical
-        ? ((barStyle === "float" || barStyle === "capsule") ? 50 : 44)
-        : ((barStyle === "float" || barStyle === "capsule") ? 36 : 30)
+        ? 44
+        : (barStyle === "transparent" ? 36 : 30)
 
     // PresetMotion-style 3-beat choreography (slide out -> swap style/edge -> bounce in)
     property bool motionBarOut: false
@@ -290,7 +304,7 @@ Item {
         scheduleBarTransition()
     }
     function setBarStyle(v) {
-        const s = (v === "float" || v === "straight" || v === "capsule" || v === "transparent") ? v : "transparent"
+        const s = (v === "transparent" || v === "straight" || v === "blur") ? v : "blur"
         if (s === _targetBarStyle && s === barStyle)
             return
         _targetBarStyle = s
@@ -314,17 +328,17 @@ Item {
     // Dock customization
     property string dockEdge: ConfigStore.stringValue("dock.edge", "bottom")
     readonly property bool dockVertical: dockEdge === "left" || dockEdge === "right"
-    property string dockStyle: ConfigStore.stringValue("dock.style", "capsule")
-    property string dockIconShape: ConfigStore.stringValue("dock.iconShape", "auto")
+    property string dockStyle: ConfigStore.stringValue("dock.style", "transparent")
+    property string dockIconShape: ConfigStore.stringValue("dock.iconShape", "square")
     property int dockTileSize: Math.max(40, Math.min(64, ConfigStore.intValue("dock.tileSize", 48)))
     property bool dockMagnify: ConfigStore.boolValue("dock.magnify", true)
     property bool dockShowFinder: ConfigStore.boolValue("dock.showFinder", false)
     property bool dockShowClipboard: ConfigStore.boolValue("dock.showClipboard", false)
     property bool dockShowDropShelf: ConfigStore.boolValue("dock.showDropShelf", false)
     property bool dockShowTrash: ConfigStore.boolValue("dock.showTrash", false)
-    property bool dockShowTimer: ConfigStore.boolValue("dock.showTimer", true)
+    property bool dockShowTimer: ConfigStore.boolValue("dock.showTimer", false)
     property bool dockShowFiles: ConfigStore.boolValue("dock.showFiles", true)
-    property bool dockShowMedia: ConfigStore.boolValue("dock.showMedia", true)
+    property bool dockShowMedia: ConfigStore.boolValue("dock.showMedia", false)
 
     function setDockEdge(v) {
         const s = (v === "top" || v === "left" || v === "right") ? v : "bottom"
@@ -409,6 +423,11 @@ Item {
     function setPhoneMode(v) {
         phoneMode = !!v
         ConfigStore.set("quickPanel.phoneMode", phoneMode)
+    }
+
+    function setPhoneDarkMode(v) {
+        phoneDarkMode = !!v
+        ConfigStore.set("quickPanel.darkMode", phoneDarkMode)
     }
 
     function setWidgetsLocked(v) {
@@ -505,6 +524,7 @@ Item {
             barShowClock: barShowClock,
             barShowTray: barShowTray,
             phoneMode: phoneMode,
+            phoneDarkMode: phoneDarkMode,
             osdEnabled: osdEnabled,
             notifyStyle: notifyStyle,
             notifyQuietFullscreen: notifyQuietFullscreen,
@@ -586,6 +606,7 @@ Item {
         if (data.barShowClock !== undefined) setBarShowClock(data.barShowClock)
         if (data.barShowTray !== undefined) setBarShowTray(data.barShowTray)
         if (data.phoneMode !== undefined) setPhoneMode(data.phoneMode)
+        if (data.phoneDarkMode !== undefined) setPhoneDarkMode(data.phoneDarkMode)
         if (data.osdEnabled !== undefined) setOsdEnabled(data.osdEnabled)
         if (data.notifyStyle !== undefined) setNotifyStyle(data.notifyStyle)
         if (data.notifyQuietFullscreen !== undefined) setNotifyQuietFullscreen(data.notifyQuietFullscreen)
@@ -628,7 +649,7 @@ Item {
     }
 
     // Desktop widgets visibility (persisted)
-    property bool wClockVisible: ConfigStore.boolValue("widgets.clock.visible", false)
+    property bool wClockVisible: ConfigStore.boolValue("widgets.clock.visible", true)
     property bool wWeatherVisible: ConfigStore.boolValue("widgets.weather.visible", false)
     property bool wTodoVisible: ConfigStore.boolValue("widgets.todo.visible", false)
     property bool wNotesVisible: ConfigStore.boolValue("widgets.notes.visible", false)
@@ -947,11 +968,13 @@ Item {
     }
 
     function removeTodo(idx) {
-        if (idx < 0 || idx >= todoItems.length)
-            return
-        const next = todoItems.slice()
-        next.splice(idx, 1)
-        saveTodoItems(next)
+        Qt.callLater(function() {
+            if (idx < 0 || idx >= todoItems.length)
+                return
+            const next = todoItems.slice()
+            next.splice(idx, 1)
+            saveTodoItems(next)
+        })
     }
 
     function clearDoneTodos() {
