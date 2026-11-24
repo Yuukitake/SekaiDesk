@@ -2,7 +2,7 @@
 Unicode True
 
 !define APP_NAME "SekaiDesk"
-!define APP_VERSION "0.3.4"
+!define APP_VERSION "0.3.5"
 !define APP_PUBLISHER "Yuukitake · SekaiDesk"
 !define APP_EXE "SekaiDesk.exe"
 !define UNINST_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SekaiDesk"

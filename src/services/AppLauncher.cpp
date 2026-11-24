@@ -1,6 +1,7 @@
 #include "AppLauncher.h"
 #include "core/SettingsStore.h"
 
+#include <QDateTime>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -196,6 +197,8 @@ AppLauncher::AppLauncher(SettingsStore* settings, QObject* parent)
 void AppLauncher::reload()
 {
     m_pinnedApps.clear();
+    m_customApps.clear();
+    m_drawerFolders.clear();
     bool hasKey = false;
     if (m_settings) {
         hasKey = m_settings->has(QStringLiteral("dock.pinnedApps"));
@@ -206,6 +209,12 @@ void AppLauncher::reload()
                     m_pinnedApps << v;
             }
         }
+        const QVariant rawCustom = m_settings->get(QStringLiteral("launcher.customApps"));
+        if (rawCustom.canConvert<QVariantList>())
+            m_customApps = rawCustom.toList();
+        const QVariant rawFolders = m_settings->get(QStringLiteral("launcher.folders"));
+        if (rawFolders.canConvert<QVariantList>())
+            m_drawerFolders = rawFolders.toList();
         m_usageCounts = m_settings->get(QStringLiteral("launcher.usage")).toMap();
         m_hiddenApps = m_settings->get(QStringLiteral("launcher.hiddenApps")).toMap();
     }
@@ -213,6 +222,7 @@ void AppLauncher::reload()
         seedDefaultsIfEmpty();
     emit pinnedAppsChanged();
     emit hiddenAppsChanged();
+    emit drawerFoldersChanged();
 }
 
 void AppLauncher::seedDefaultsIfEmpty()
@@ -274,6 +284,55 @@ void AppLauncher::saveHiddenApps()
 {
     if (m_settings)
         m_settings->set(QStringLiteral("launcher.hiddenApps"), m_hiddenApps);
+}
+
+void AppLauncher::saveCustomApps()
+{
+    if (m_settings)
+        m_settings->set(QStringLiteral("launcher.customApps"), m_customApps);
+}
+
+void AppLauncher::saveDrawerFolders()
+{
+    if (m_settings)
+        m_settings->set(QStringLiteral("launcher.folders"), m_drawerFolders);
+}
+
+bool AppLauncher::stripTargetFromFolders(const QString& normTarget, const QString& keepFolderId)
+{
+    if (normTarget.isEmpty())
+        return false;
+    bool changed = false;
+    QVariantList next;
+    for (const QVariant& fv : m_drawerFolders) {
+        QVariantMap fm = fv.toMap();
+        const QString fid = fm.value(QStringLiteral("id")).toString();
+        if (!keepFolderId.isEmpty() && fid == keepFolderId) {
+            next.append(fm);
+            continue;
+        }
+        const QVariantList apps = fm.value(QStringLiteral("apps")).toList();
+        QVariantList filtered;
+        bool folderTouched = false;
+        for (const QVariant& av : apps) {
+            if (av.toString().trimmed().toLower() == normTarget) {
+                folderTouched = true;
+                changed = true;
+            } else {
+                filtered.append(av);
+            }
+        }
+        if (filtered.isEmpty()) {
+            changed = true;
+            continue;
+        }
+        if (folderTouched)
+            fm.insert(QStringLiteral("apps"), filtered);
+        next.append(fm);
+    }
+    if (changed)
+        m_drawerFolders = next;
+    return changed;
 }
 
 void AppLauncher::recordUsage(const QString& target)
@@ -654,6 +713,334 @@ void AppLauncher::reorderDock(const QVariantList& currentAppItems,
     emit pinnedAppsChanged();
 }
 
+static QString displayNameForDroppedPath(const QFileInfo& fi)
+{
+    if (fi.isDir()) {
+        const QString dirName = fi.fileName();
+        return dirName.isEmpty() ? QDir::toNativeSeparators(fi.absoluteFilePath()) : dirName;
+    }
+    const QString ext = fi.suffix().toLower();
+    if (ext == QStringLiteral("lnk") || ext == QStringLiteral("url")
+        || ext == QStringLiteral("exe") || ext == QStringLiteral("bat")
+        || ext == QStringLiteral("cmd") || ext == QStringLiteral("msc")) {
+        const QString base = fi.completeBaseName();
+        if (!base.isEmpty())
+            return base;
+    }
+    const QString fn = fi.fileName();
+    return fn.isEmpty() ? QDir::toNativeSeparators(fi.absoluteFilePath()) : fn;
+}
+
+int AppLauncher::pinDroppedFiles(const QStringList& paths)
+{
+    int added = 0;
+    for (const QString& raw : paths) {
+        const QString clean = raw.trimmed();
+        if (clean.isEmpty())
+            continue;
+        const QFileInfo fi(clean);
+        if (!fi.exists())
+            continue;
+        const QString nativeTarget = QDir::toNativeSeparators(fi.absoluteFilePath());
+        const QString norm = nativeTarget.toLower();
+        bool exists = false;
+        for (const QVariant& v : m_pinnedApps) {
+            if (v.toMap().value(QStringLiteral("target")).toString().trimmed().toLower() == norm) {
+                exists = true;
+                break;
+            }
+        }
+        if (exists)
+            continue;
+        addPinnedApp(displayNameForDroppedPath(fi), nativeTarget, QString());
+        ++added;
+    }
+    return added;
+}
+
+bool AppLauncher::addCustomApp(const QString& path)
+{
+    const QString clean = path.trimmed();
+    if (clean.isEmpty())
+        return false;
+    const QFileInfo fi(clean);
+    if (!fi.exists())
+        return false;
+
+    const QString nativeTarget = QDir::toNativeSeparators(fi.absoluteFilePath());
+    const QString norm = nativeTarget.toLower();
+    const QString name = displayNameForDroppedPath(fi);
+
+    if (isHidden(nativeTarget))
+        unhideApp(nativeTarget);
+
+    for (const QVariant& v : m_customApps) {
+        if (v.toMap().value(QStringLiteral("target")).toString().trimmed().toLower() == norm)
+            return false;
+    }
+    QVariantMap entry;
+    entry.insert(QStringLiteral("name"), name);
+    entry.insert(QStringLiteral("target"), nativeTarget);
+    m_customApps.append(entry);
+    saveCustomApps();
+    refreshInstalledApps();
+    return true;
+}
+
+void AppLauncher::removeCustomApp(const QString& target)
+{
+    const QString norm = target.trimmed().toLower();
+    if (norm.isEmpty())
+        return;
+    bool removed = false;
+    for (int i = m_customApps.size() - 1; i >= 0; --i) {
+        if (m_customApps.at(i).toMap().value(QStringLiteral("target")).toString().trimmed().toLower() == norm) {
+            m_customApps.removeAt(i);
+            removed = true;
+        }
+    }
+    if (removed) {
+        saveCustomApps();
+        refreshInstalledApps();
+    }
+}
+
+QString AppLauncher::createFolder(const QString& name, const QString& targetA,
+                                  const QString& targetB)
+{
+    const QString ta = targetA.trimmed();
+    const QString tb = targetB.trimmed();
+    const QString na = ta.toLower();
+    const QString nb = tb.toLower();
+    if (na.isEmpty() || nb.isEmpty() || na == nb)
+        return {};
+
+    stripTargetFromFolders(na);
+    stripTargetFromFolders(nb);
+
+    const QString fid = QStringLiteral("fld_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    QString cleanName = name.trimmed();
+    if (cleanName.isEmpty())
+        cleanName = QStringLiteral("Folder");
+
+    QVariantMap folder;
+    folder.insert(QStringLiteral("id"), fid);
+    folder.insert(QStringLiteral("name"), cleanName);
+    folder.insert(QStringLiteral("apps"), QVariantList{ ta, tb });
+    m_drawerFolders.append(folder);
+    saveDrawerFolders();
+    emit drawerFoldersChanged();
+    return fid;
+}
+
+QString AppLauncher::createFolderMulti(const QString& name, const QStringList& targets)
+{
+    QVariantList apps;
+    QSet<QString> seen;
+    for (const QString& raw : targets) {
+        const QString clean = raw.trimmed();
+        const QString norm = clean.toLower();
+        if (norm.isEmpty() || seen.contains(norm))
+            continue;
+        seen.insert(norm);
+        apps.append(clean);
+    }
+    if (apps.size() < 2)
+        return {};
+
+    for (const QString& norm : seen)
+        stripTargetFromFolders(norm);
+
+    const QString fid = QStringLiteral("fld_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    QString cleanName = name.trimmed();
+    if (cleanName.isEmpty())
+        cleanName = QStringLiteral("Folder");
+
+    QVariantMap folder;
+    folder.insert(QStringLiteral("id"), fid);
+    folder.insert(QStringLiteral("name"), cleanName);
+    folder.insert(QStringLiteral("apps"), apps);
+    m_drawerFolders.append(folder);
+    saveDrawerFolders();
+    emit drawerFoldersChanged();
+    return fid;
+}
+
+void AppLauncher::hideApps(const QVariantList& items)
+{
+    bool changed = false;
+    for (const QVariant& v : items) {
+        const QVariantMap item = v.toMap();
+        const QString target = item.value(QStringLiteral("target")).toString().trimmed();
+        const QString key = target.toLower();
+        if (key.isEmpty())
+            continue;
+        QString displayName = item.value(QStringLiteral("name")).toString().trimmed();
+        if (displayName.isEmpty()) {
+            const QString base = QFileInfo(target).completeBaseName();
+            displayName = base.isEmpty() ? target : base;
+        }
+        m_hiddenApps.insert(key, displayName);
+        changed = true;
+    }
+    if (changed) {
+        saveHiddenApps();
+        emit hiddenAppsChanged();
+    }
+}
+
+void AppLauncher::addAppToFolder(const QString& folderId, const QString& target)
+{
+    const QString t = target.trimmed();
+    const QString norm = t.toLower();
+    if (folderId.isEmpty() || norm.isEmpty())
+        return;
+
+    bool changed = stripTargetFromFolders(norm, folderId);
+    for (int i = 0; i < m_drawerFolders.size(); ++i) {
+        QVariantMap fm = m_drawerFolders.at(i).toMap();
+        if (fm.value(QStringLiteral("id")).toString() != folderId)
+            continue;
+        QVariantList apps = fm.value(QStringLiteral("apps")).toList();
+        bool already = false;
+        for (const QVariant& av : apps) {
+            if (av.toString().trimmed().toLower() == norm) {
+                already = true;
+                break;
+            }
+        }
+        if (!already) {
+            apps.append(t);
+            fm.insert(QStringLiteral("apps"), apps);
+            m_drawerFolders[i] = fm;
+            changed = true;
+        }
+        break;
+    }
+    if (changed) {
+        saveDrawerFolders();
+        emit drawerFoldersChanged();
+    }
+}
+
+void AppLauncher::addAppsToFolder(const QString& folderId, const QStringList& targets)
+{
+    if (folderId.isEmpty() || targets.isEmpty())
+        return;
+
+    bool changed = false;
+    QStringList cleanList;
+    QSet<QString> seen;
+    for (const QString& raw : targets) {
+        const QString t = raw.trimmed();
+        const QString norm = t.toLower();
+        if (norm.isEmpty() || seen.contains(norm))
+            continue;
+        seen.insert(norm);
+        cleanList.append(t);
+        if (stripTargetFromFolders(norm, folderId))
+            changed = true;
+    }
+    if (cleanList.isEmpty())
+        return;
+
+    for (int i = 0; i < m_drawerFolders.size(); ++i) {
+        QVariantMap fm = m_drawerFolders.at(i).toMap();
+        if (fm.value(QStringLiteral("id")).toString() != folderId)
+            continue;
+        QVariantList apps = fm.value(QStringLiteral("apps")).toList();
+        QSet<QString> existing;
+        for (const QVariant& av : apps)
+            existing.insert(av.toString().trimmed().toLower());
+        bool folderTouched = false;
+        for (const QString& t : cleanList) {
+            const QString norm = t.toLower();
+            if (!existing.contains(norm)) {
+                existing.insert(norm);
+                apps.append(t);
+                folderTouched = true;
+                changed = true;
+            }
+        }
+        if (folderTouched) {
+            fm.insert(QStringLiteral("apps"), apps);
+            m_drawerFolders[i] = fm;
+        }
+        break;
+    }
+    if (changed) {
+        saveDrawerFolders();
+        emit drawerFoldersChanged();
+    }
+}
+
+void AppLauncher::removeAppFromFolder(const QString& folderId, const QString& target)
+{
+    const QString norm = target.trimmed().toLower();
+    if (folderId.isEmpty() || norm.isEmpty())
+        return;
+
+    bool changed = false;
+    for (int i = m_drawerFolders.size() - 1; i >= 0; --i) {
+        QVariantMap fm = m_drawerFolders.at(i).toMap();
+        if (fm.value(QStringLiteral("id")).toString() != folderId)
+            continue;
+        QVariantList apps = fm.value(QStringLiteral("apps")).toList();
+        for (int j = apps.size() - 1; j >= 0; --j) {
+            if (apps.at(j).toString().trimmed().toLower() == norm) {
+                apps.removeAt(j);
+                changed = true;
+            }
+        }
+        if (apps.isEmpty()) {
+            m_drawerFolders.removeAt(i);
+            changed = true;
+        } else if (changed) {
+            fm.insert(QStringLiteral("apps"), apps);
+            m_drawerFolders[i] = fm;
+        }
+        break;
+    }
+    if (changed) {
+        saveDrawerFolders();
+        emit drawerFoldersChanged();
+    }
+}
+
+void AppLauncher::renameFolder(const QString& folderId, const QString& newName)
+{
+    const QString clean = newName.trimmed();
+    if (folderId.isEmpty() || clean.isEmpty())
+        return;
+
+    for (int i = 0; i < m_drawerFolders.size(); ++i) {
+        QVariantMap fm = m_drawerFolders.at(i).toMap();
+        if (fm.value(QStringLiteral("id")).toString() == folderId) {
+            if (fm.value(QStringLiteral("name")).toString() == clean)
+                return;
+            fm.insert(QStringLiteral("name"), clean);
+            m_drawerFolders[i] = fm;
+            saveDrawerFolders();
+            emit drawerFoldersChanged();
+            return;
+        }
+    }
+}
+
+void AppLauncher::deleteFolder(const QString& folderId)
+{
+    if (folderId.isEmpty())
+        return;
+    for (int i = m_drawerFolders.size() - 1; i >= 0; --i) {
+        if (m_drawerFolders.at(i).toMap().value(QStringLiteral("id")).toString() == folderId) {
+            m_drawerFolders.removeAt(i);
+            saveDrawerFolders();
+            emit drawerFoldersChanged();
+            return;
+        }
+    }
+}
+
 void AppLauncher::refreshInstalledApps()
 {
     QVariantList out;
@@ -684,6 +1071,13 @@ void AppLauncher::refreshInstalledApps()
                 pm.value(QStringLiteral("target")).toString(),
                 QStringLiteral("Pinned"),
                 pm.value(QStringLiteral("args")).toString());
+    }
+
+    for (const QVariant& v : m_customApps) {
+        const QVariantMap cm = v.toMap();
+        addItem(cm.value(QStringLiteral("name")).toString(),
+                cm.value(QStringLiteral("target")).toString(),
+                QStringLiteral("Custom"));
     }
 
 #ifdef Q_OS_WIN
@@ -914,13 +1308,15 @@ QVariantList AppLauncher::searchApps(const QString& query) const
     QList<Scored> matches;
     for (const QVariant& v : m_installedApps) {
         QVariantMap m = v.toMap();
-        if (isHidden(m.value(QStringLiteral("target")).toString()))
-            continue;
+        const QString target = m.value(QStringLiteral("target")).toString();
         const int base = fuzzyMatchScore(m.value(QStringLiteral("name")).toString(), q);
         if (base <= 0)
             continue;
-        const int usage = m_usageCounts.value(m.value(QStringLiteral("target")).toString().toLower(), 0).toInt();
-        const int bonus = qMin(180, usage * 25) + (m.value(QStringLiteral("category")).toString() == QStringLiteral("Pinned") ? 30 : 0);
+        const int usage = m_usageCounts.value(target.toLower(), 0).toInt();
+        const int visibleBonus = isHidden(target) ? 0 : 15;
+        const int bonus = qMin(180, usage * 25)
+            + (m.value(QStringLiteral("category")).toString() == QStringLiteral("Pinned") ? 30 : 0)
+            + visibleBonus;
         m.insert(QStringLiteral("score"), base + bonus);
         matches.append({ base + bonus, m });
     }

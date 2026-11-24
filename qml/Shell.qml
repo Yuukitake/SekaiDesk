@@ -16,6 +16,26 @@ import SekaiDesk
 PanelWindow {
     id: dockWindow
     visible: !GameModeService.active
+    acceptFileDrops: true
+    property bool dropFlash: false
+
+    Timer {
+        id: dropFlashTimer
+        interval: 450
+        repeat: false
+        onTriggered: dockWindow.dropFlash = false
+    }
+
+    onFilesDropped: files => {
+        const list = files
+        Qt.callLater(() => {
+            const added = AppLauncher.pinDroppedFiles(list)
+            if (added > 0) {
+                dockWindow.dropFlash = true
+                dropFlashTimer.restart()
+            }
+        })
+    }
 
     readonly property bool needsEdgePolling: themeHub.dockAutoHide || themeHub.barAutoHide
     onNeedsEdgePollingChanged: WindowTracker.setEdgePollingNeeded(needsEdgePolling)
@@ -545,6 +565,18 @@ PanelWindow {
                     dockWindow.pointerAxis = point.position.x - idleLeft
                 }
             }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: dockPill.radius
+            color: "transparent"
+            border.width: dockWindow.dropFlash ? 3.5 : 0
+            border.color: themeHub.accentB
+            opacity: dockWindow.dropFlash ? 1.0 : 0.0
+            z: 200
+            antialiasing: true
+            Behavior on opacity { NumberAnimation { duration: 160 } }
         }
 
         Item {

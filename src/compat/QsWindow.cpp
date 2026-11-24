@@ -166,7 +166,10 @@ HWND findDesktopHostHwnd()
         HWND host = nullptr;
     } ctx;
     EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-        if (FindWindowExW(hwnd, nullptr, L"SHELLDLL_DefView", nullptr)) {
+        wchar_t cls[64]{};
+        if (GetClassNameW(hwnd, cls, 64) > 0
+            && (wcscmp(cls, L"WorkerW") == 0 || wcscmp(cls, L"Progman") == 0)
+            && FindWindowExW(hwnd, nullptr, L"SHELLDLL_DefView", nullptr)) {
             reinterpret_cast<FindHostCtx*>(lParam)->host = hwnd;
             return FALSE;
         }
@@ -206,6 +209,36 @@ bool isWindowBehind(HWND hwnd, HWND ref)
     return false;
 }
 
+bool isVisibleModalOrDialogWindow(HWND cur)
+{
+    if (!cur || !IsWindow(cur) || !IsWindowVisible(cur) || IsIconic(cur))
+        return false;
+    if (s_desktopHwnds.contains(cur) || s_overlayTopmostHwnds.contains(cur))
+        return false;
+    const LONG_PTR ex = GetWindowLongPtrW(cur, GWL_EXSTYLE);
+    if ((ex & WS_EX_TOPMOST) != 0)
+        return false;
+    if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0)
+        return false;
+    if (isShellOrSystemWindowClass(cur))
+        return false;
+    BOOL cloaked = FALSE;
+    if (SUCCEEDED(DwmGetWindowAttribute(cur, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked)
+        return false;
+    RECT rc{};
+    if (!GetWindowRect(cur, &rc))
+        return false;
+    const int w = rc.right - rc.left;
+    const int h = rc.bottom - rc.top;
+    if (w < 80 || h < 60)
+        return false;
+    wchar_t cls[64]{};
+    if (GetClassNameW(cur, cls, 64) > 0 && wcscmp(cls, L"#32770") == 0)
+        return true;
+    // Also treat sizable owned modal dialogs / popups (>= 160x120) as active app UI
+    return w >= 160 && h >= 120;
+}
+
 bool isNormalAppWindow(HWND cur)
 {
     if (!cur || !IsWindow(cur) || !IsWindowVisible(cur) || IsIconic(cur))
@@ -215,8 +248,10 @@ bool isNormalAppWindow(HWND cur)
     const LONG_PTR ex = GetWindowLongPtrW(cur, GWL_EXSTYLE);
     if ((ex & WS_EX_TOPMOST) != 0 || ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0))
         return false;
-    if (GetWindow(cur, GW_OWNER) != nullptr && (ex & WS_EX_APPWINDOW) == 0)
-        return false;
+    if (GetWindow(cur, GW_OWNER) != nullptr && (ex & WS_EX_APPWINDOW) == 0) {
+        if (!isVisibleModalOrDialogWindow(cur))
+            return false;
+    }
     if (isShellOrSystemWindowClass(cur))
         return false;
     BOOL cloaked = FALSE;
@@ -233,6 +268,17 @@ bool isShowDesktopActive(HWND host)
     if (s_desktopHwnds.isEmpty() || !host || !IsWindow(host))
         return false;
 
+    const HWND fg = GetForegroundWindow();
+    if (fg && fg != host && !s_desktopHwnds.contains(fg)
+        && !s_overlayTopmostHwnds.contains(fg)
+        && !isShellOrSystemWindowClass(fg)
+        && !IsIconic(fg)) {
+        wchar_t fgCls[64]{};
+        const bool isDialog = GetClassNameW(fg, fgCls, 64) > 0 && wcscmp(fgCls, L"#32770") == 0;
+        if ((isDialog || isNormalAppWindow(fg)) && !isWindowBehind(fg, host))
+            return false;
+    }
+
     // Walk top-to-bottom non-topmost windows before desktop host.
     HWND cur = GetTopWindow(nullptr);
     int steps = 0;
@@ -243,7 +289,6 @@ bool isShowDesktopActive(HWND host)
         cur = GetWindow(cur, GW_HWNDNEXT);
     }
 
-    const HWND fg = GetForegroundWindow();
     if (!fg || fg == host || s_desktopHwnds.contains(fg)
         || s_overlayTopmostHwnds.contains(fg)
         || isShellOrSystemWindowClass(fg)
@@ -286,7 +331,8 @@ HWND nonWidgetPrevAboveDesktopHost(HWND host, HWND self)
                 cur = GetWindow(cur, GW_HWNDPREV);
                 continue;
             }
-            if (GetWindow(cur, GW_OWNER) != nullptr && (ex & WS_EX_APPWINDOW) == 0) {
+            if (GetWindow(cur, GW_OWNER) != nullptr && (ex & WS_EX_APPWINDOW) == 0
+                && !isVisibleModalOrDialogWindow(cur)) {
                 cur = GetWindow(cur, GW_HWNDPREV);
                 continue;
             }
@@ -307,6 +353,35 @@ HWND nonWidgetPrevAboveDesktopHost(HWND host, HWND self)
             return cur;
         }
         cur = GetWindow(cur, GW_HWNDPREV);
+    }
+    return nullptr;
+}
+
+HWND findAnyNonTopmostWindowAboveHost(HWND host, HWND self)
+{
+    if (host && IsWindow(host)) {
+        HWND cur = GetWindow(host, GW_HWNDPREV);
+        int steps = 0;
+        while (cur && steps < 1024) {
+            ++steps;
+            if ((GetWindowLongPtrW(cur, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0)
+                break;
+            if (cur != self && !s_desktopHwnds.contains(cur) && !s_overlayTopmostHwnds.contains(cur)
+                && IsWindowVisible(cur) && !IsIconic(cur) && !isShellOrSystemWindowClass(cur)) {
+                BOOL cloaked = FALSE;
+                if (!SUCCEEDED(DwmGetWindowAttribute(cur, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) || !cloaked)
+                    return cur;
+            }
+            cur = GetWindow(cur, GW_HWNDPREV);
+        }
+    }
+    const HWND fg = GetForegroundWindow();
+    if (fg && fg != self && fg != host
+        && !s_desktopHwnds.contains(fg) && !s_overlayTopmostHwnds.contains(fg)
+        && IsWindowVisible(fg) && !IsIconic(fg) && !isShellOrSystemWindowClass(fg)
+        && (GetWindowLongPtrW(fg, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0
+        && (!host || !isWindowBehind(fg, host))) {
+        return fg;
     }
     return nullptr;
 }
@@ -335,6 +410,8 @@ void applySingleDesktopZOrder(HWND hwnd, HWND host, bool showDesk, HWND lowestTo
         HWND targetAfter = nonWidgetPrevAboveDesktopHost(host, hwnd);
         if (!targetAfter)
             targetAfter = lowestNormalAppWindow();
+        if (!targetAfter)
+            targetAfter = findAnyNonTopmostWindowAboveHost(host, hwnd);
 
         if (targetAfter) {
             const bool behindTarget = isWindowBehind(hwnd, targetAfter);
@@ -1729,6 +1806,8 @@ bool PanelWindow::nativeEvent(const QByteArray& eventType, void* message, qintpt
                             HWND targetAfter = nonWidgetPrevAboveDesktopHost(host, msg->hwnd);
                             if (!targetAfter)
                                 targetAfter = lowestNormalAppWindow();
+                            if (!targetAfter)
+                                targetAfter = findAnyNonTopmostWindowAboveHost(host, msg->hwnd);
                             if (targetAfter)
                                 pos->hwndInsertAfter = targetAfter;
                             else
